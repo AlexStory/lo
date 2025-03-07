@@ -21,6 +21,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.FloatLiteral:
 		return &object.Float{Value: node.Value}
 
+	case *ast.StringLiteral:
+		return &object.String{Value: node.Value}
+
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
 	case *ast.ListLiteral:

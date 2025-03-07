@@ -69,3 +69,12 @@ type ListLiteral struct {
 
 func (ll *ListLiteral) expressionNode()      {}
 func (ll *ListLiteral) TokenLiteral() string { return ll.Token.Literal }
+
+// StringLiteral represents a string literal node
+type StringLiteral struct {
+	Token token.Token // The token.STRING token
+	Value string
+}
+
+func (sl *StringLiteral) expressionNode()      {}
+func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }

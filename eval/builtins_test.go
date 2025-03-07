@@ -67,3 +67,19 @@ func TestDivide(t *testing.T) {
 		testIntegerObject(t, evaluated, tt.expected)
 	}
 }
+
+func TestStr(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`(str "hello" "world")`, "helloworld"},
+		{`(str "hello" " " "world")`, "hello world"},
+		{`(str "hello" " " "world" "!")`, "hello world!"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testStringObject(t, evaluated, tt.expected)
+	}
+}

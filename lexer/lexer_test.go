@@ -9,7 +9,8 @@ func TestLexer(t *testing.T) {
 	t.Run("math thest", func(t *testing.T) {
 		input := `(+ 1 2)
 (+ (+ 1 2) 3)
-[1 2]`
+[1 2]
+"hello" "world"`
 		l := New(input, "test")
 
 		tests := []struct {
@@ -36,7 +37,9 @@ func TestLexer(t *testing.T) {
 			{token.Number, "1", 3, 2},
 			{token.Number, "2", 3, 4},
 			{token.CloseBracket, "]", 3, 5},
-			{token.EOF, "", 3, 6},
+			{token.String, "hello", 4, 1},
+			{token.String, "world", 4, 9},
+			{token.EOF, "", 4, 16},
 		}
 
 		for i, tt := range tests {

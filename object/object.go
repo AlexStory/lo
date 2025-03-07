@@ -16,6 +16,7 @@ const (
 	FUNCTION_OBJ ObjectType = "FUNCTION"
 	BUILTIN_OBJ  ObjectType = "BUILTIN"
 	LIST_OBJ     ObjectType = "LIST"
+	STRING_OBJ   ObjectType = "STRING"
 )
 
 type Object interface {
@@ -96,3 +97,11 @@ func (l *List) Inspect() string {
 	out.WriteString("]")
 	return out.String()
 }
+
+// String returns the string representation of the object
+type String struct {
+	Value string
+}
+
+func (s *String) Type() ObjectType { return STRING_OBJ }
+func (s *String) Inspect() string  { return s.Value }

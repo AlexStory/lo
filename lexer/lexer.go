@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"bytes"
 	"lo/token"
 	"unicode/utf8"
 )
@@ -42,6 +43,12 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.OpenBracket, l, string(l.ch))
 	case ']':
 		tok = newToken(token.CloseBracket, l, string(l.ch))
+	case '"':
+		tok.Type = token.String
+		tok.Column = l.column
+		tok.Line = l.line
+		tok.Literal = l.readString()
+		return tok
 	case 0:
 		tok = newToken(token.EOF, l, "")
 	default:
@@ -133,4 +140,47 @@ func (l *Lexer) skipComments() {
 
 func newToken(tokenType token.TokenType, l *Lexer, literal string) token.Token {
 	return token.Token{Type: tokenType, Line: l.line, Column: l.column, Filename: l.filename, Literal: literal}
+}
+
+func (l *Lexer) readString() string {
+	var out bytes.Buffer
+	escape := false
+
+	l.readChar() // Skip the opening quote
+
+	for l.ch != '"' || escape {
+		if l.ch == 0 {
+			break
+		}
+
+		if escape {
+			switch l.ch {
+			case 'n':
+				out.WriteByte('\n')
+			case 't':
+				out.WriteByte('\t')
+			case 'r':
+				out.WriteByte('\r')
+			case '\\':
+				out.WriteByte('\\')
+			case '"':
+				out.WriteByte('"')
+			default:
+				out.WriteByte('\\')
+				out.WriteRune(l.ch)
+			}
+			escape = false
+		} else {
+			if l.ch == '\\' {
+				escape = true
+			} else {
+				out.WriteRune(l.ch)
+			}
+		}
+
+		l.readChar()
+	}
+
+	l.readChar() // Skip the closing quote
+	return out.String()
 }

@@ -1,12 +1,17 @@
 package eval
 
-import "lo/object"
+import (
+	"strings"
+
+	"lo/object"
+)
 
 var builtinFunctions = map[string]object.BuiltinFunction{
-	"+": add,
-	"-": subtract,
-	"*": multiply,
-	"/": divide,
+	"+":   add,
+	"-":   subtract,
+	"*":   multiply,
+	"/":   divide,
+	"str": str,
 }
 
 func add(args ...object.Object) object.Object {
@@ -123,4 +128,13 @@ func div(total, arg object.Object) object.Object {
 		}
 	}
 	return nil
+}
+
+func str(args ...object.Object) object.Object {
+	var s strings.Builder
+
+	for _, arg := range args {
+		s.WriteString(arg.Inspect())
+	}
+	return &object.String{Value: s.String()}
 }

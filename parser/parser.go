@@ -56,6 +56,8 @@ func (p *Parser) parseExpression() ast.Expression {
 		return p.parseIdentifier()
 	case token.Number:
 		return p.parseNumber()
+	case token.String:
+		return &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
 	case token.OpenParen:
 		return p.parseList()
 	case token.OpenBracket:
@@ -103,21 +105,6 @@ func (p *Parser) parseList() *ast.ListExpression {
 	return list
 }
 
-// func (p *Parser) parseListLiteral() *ast.ListLiteral {
-// 	list := &ast.ListLiteral{Token: p.curToken}
-// 	list.Expressions = []ast.Expression{}
-
-// 	for p.peekToken.Type != token.CloseBracket && p.peekToken.Type != token.EOF {
-// 		p.nextToken()
-// 		expr := p.parseExpression()
-// 		if expr != nil {
-// 			list.Expressions = append(list.Expressions, expr)
-// 		}
-// 	}
-// 	p.nextToken()
-
-//		return list
-//	}
 func (p *Parser) parseListLiteral() *ast.ListLiteral {
 	list := &ast.ListLiteral{Token: p.curToken}
 	list.Expressions = []ast.Expression{}
