@@ -48,6 +48,8 @@ func evalList(le *ast.ListExpression, env *object.Environment) object.Object {
 		return &object.Error{Message: "empty list"}
 	}
 
+	var f object.Object
+
 	first := le.Expressions[0]
 	if ident, ok := first.(*ast.Identifier); ok {
 		switch ident.Value {
@@ -55,10 +57,15 @@ func evalList(le *ast.ListExpression, env *object.Environment) object.Object {
 			return doDef(le, env)
 		case "defn":
 			return evalDefn(le, env)
+		case "\\":
+			return evalLambda(le, env)
+		default:
+			f = evalIdentifier(ident, env)
 		}
+	} else {
+		f = Eval(first, env)
 	}
 
-	f := Eval(le.Expressions[0], env)
 	if f.Type() != object.FUNCTION_OBJ && f.Type() != object.BUILTIN_OBJ {
 
 		return &object.Error{Message: "first element is not a function"}
@@ -157,4 +164,27 @@ func evalDefn(le *ast.ListExpression, env *object.Environment) object.Object {
 	fn := &object.Function{Name: ident.Value, Parameters: params, Body: body, Env: env}
 	env.Set(ident.Value, fn)
 	return fn
+}
+
+func evalLambda(le *ast.ListExpression, env *object.Environment) object.Object {
+	if len(le.Expressions) < 3 {
+		return &object.Error{Message: "wrong number of arguments to lambda, got " + fmt.Sprint(len(le.Expressions)-1) + ", expected 2"}
+	}
+
+	paramsExpr, ok := le.Expressions[1].(*ast.ListLiteral)
+	if !ok {
+		return &object.Error{Message: "first argument to lambda must be a list of identifiers"}
+	}
+
+	params := []*ast.Identifier{}
+	for _, p := range paramsExpr.Expressions {
+		param, ok := p.(*ast.Identifier)
+		if !ok {
+			return &object.Error{Message: "parameters to lambda must be identifiers"}
+		}
+		params = append(params, param)
+	}
+
+	body := le.Expressions[2]
+	return &object.Function{Name: "lambda", Parameters: params, Body: body, Env: env}
 }
