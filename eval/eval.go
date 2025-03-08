@@ -3,6 +3,7 @@ package eval
 import (
 	"fmt"
 	"lo/ast"
+	"lo/consts"
 	"lo/object"
 )
 
@@ -59,6 +60,8 @@ func evalList(le *ast.ListExpression, env *object.Environment) object.Object {
 			return evalDefn(le, env)
 		case "\\":
 			return evalLambda(le, env)
+		case "if":
+			return evalIf(le, env)
 		default:
 			f = evalIdentifier(ident, env)
 		}
@@ -113,6 +116,14 @@ func evalListLiteral(ll *ast.ListLiteral, env *object.Environment) object.Object
 }
 
 func evalIdentifier(ident *ast.Identifier, env *object.Environment) object.Object {
+
+	switch ident.Value {
+	case "true":
+		return &consts.TrueBool
+	case "false":
+		return &consts.FalseBool
+	}
+
 	if b, ok := builtinFunctions[ident.Value]; ok {
 		return &object.Builtin{Fn: b}
 	}
@@ -191,4 +202,17 @@ func evalLambda(le *ast.ListExpression, env *object.Environment) object.Object {
 
 	body := le.Expressions[2:]
 	return &object.Function{Name: "lambda", Parameters: params, Body: body, Env: env}
+}
+
+func evalIf(le *ast.ListExpression, env *object.Environment) object.Object {
+
+	if len(le.Expressions) != 4 {
+		return &object.Error{Message: "wrong number of arguments to if, got " + fmt.Sprint(len(le.Expressions)-1) + ", expected 3"}
+	}
+
+	cond := Eval(le.Expressions[1], env)
+	if cond != &consts.FalseBool {
+		return Eval(le.Expressions[2], env)
+	}
+	return Eval(le.Expressions[3], env)
 }

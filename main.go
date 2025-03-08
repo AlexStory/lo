@@ -33,7 +33,7 @@ func runRepl() {
 	env := object.NewEnvironment()
 
 	fmt.Println("lo v0.0.1")
-	fmt.Println("tyep '.exit' to exit")
+	fmt.Println("type '.exit' to exit")
 	fmt.Println()
 
 	for {
