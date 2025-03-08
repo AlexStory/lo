@@ -91,7 +91,11 @@ func applyFunction(fn object.Object, args []object.Object, env *object.Environme
 			extendedEnv.Set(param.Value, args[i])
 		}
 
-		return Eval(fn.Body, extendedEnv)
+		var result object.Object
+		for _, exp := range fn.Body {
+			result = Eval(exp, extendedEnv)
+		}
+		return result
 	case *object.Builtin:
 		return fn.Fn(args...)
 	}
@@ -160,7 +164,7 @@ func evalDefn(le *ast.ListExpression, env *object.Environment) object.Object {
 		params = append(params, param)
 	}
 
-	body := le.Expressions[3]
+	body := le.Expressions[3:]
 	fn := &object.Function{Name: ident.Value, Parameters: params, Body: body, Env: env}
 	env.Set(ident.Value, fn)
 	return fn
@@ -185,6 +189,6 @@ func evalLambda(le *ast.ListExpression, env *object.Environment) object.Object {
 		params = append(params, param)
 	}
 
-	body := le.Expressions[2]
+	body := le.Expressions[2:]
 	return &object.Function{Name: "lambda", Parameters: params, Body: body, Env: env}
 }

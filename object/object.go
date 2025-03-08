@@ -60,7 +60,7 @@ func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
 type Function struct {
 	Name       string
 	Parameters []*ast.Identifier
-	Body       ast.Expression
+	Body       []ast.Expression
 	Env        *Environment
 }
 

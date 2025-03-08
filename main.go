@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"strings"
 
 	"lo/eval"
 	"lo/lexer"
@@ -21,7 +23,7 @@ func main() {
 	} else {
 		switch args[0] {
 		default:
-			fmt.Printf("Unknown command: %s\n", args[0])
+			runFile(args[0], args[1:])
 		}
 	}
 }
@@ -60,6 +62,45 @@ func runRepl() {
 			fmt.Println(result.Inspect())
 		}
 	}
+}
+
+func runFile(path string, args []string) {
+	file, err := os.Open(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to open file: %s\n", err)
+		os.Exit(1)
+	}
+	defer file.Close()
+
+	// read all contents of the file to a string
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to read file: %s\n", err)
+		os.Exit(1)
+	}
+	l := lexer.New(string(contents), file.Name())
+	p := parser.New(l)
+	program := p.Parse()
+
+	if len(p.Errors) != 0 {
+		printParserErrors(p.Errors)
+		os.Exit(1)
+	}
+
+	env := object.NewEnvironment()
+	_ = eval.Eval(program, env)
+
+	main, ok := env.Get("main")
+	if ok && main.Type() == object.FUNCTION_OBJ {
+		s := fmt.Sprintf("(main %s)", strings.Join(args, " "))
+		l = lexer.New(s, "main")
+		p = parser.New(l)
+		program = p.Parse()
+
+		eval.Eval(program, env)
+
+	}
+
 }
 
 func printParserErrors(errors []parser.ParseError) {

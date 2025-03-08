@@ -1,0 +1,6 @@
+(defn add [x y]
+    (+ x y))
+
+(defn main [x y]
+    (def n (+ x y))
+    (println n))

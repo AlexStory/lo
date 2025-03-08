@@ -1,17 +1,20 @@
 package eval
 
 import (
+	"fmt"
 	"strings"
 
 	"lo/object"
 )
 
 var builtinFunctions = map[string]object.BuiltinFunction{
-	"+":   add,
-	"-":   subtract,
-	"*":   multiply,
-	"/":   divide,
-	"str": str,
+	"+":       add,
+	"-":       subtract,
+	"*":       multiply,
+	"/":       divide,
+	"str":     str,
+	"print":   print,
+	"println": println,
 }
 
 func add(args ...object.Object) object.Object {
@@ -137,4 +140,19 @@ func str(args ...object.Object) object.Object {
 		s.WriteString(arg.Inspect())
 	}
 	return &object.String{Value: s.String()}
+}
+
+func print(args ...object.Object) object.Object {
+	for _, arg := range args {
+		fmt.Printf(arg.Inspect())
+	}
+	return nil
+}
+
+func println(args ...object.Object) object.Object {
+	for _, arg := range args {
+		fmt.Printf(arg.Inspect())
+	}
+	fmt.Println()
+	return nil
 }
