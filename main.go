@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -73,11 +72,12 @@ func runFile(path string, args []string) {
 	defer file.Close()
 
 	// read all contents of the file to a string
-	contents, err := ioutil.ReadFile(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to read file: %s\n", err)
 		os.Exit(1)
 	}
+
 	l := lexer.New(string(contents), file.Name())
 	p := parser.New(l)
 	program := p.Parse()

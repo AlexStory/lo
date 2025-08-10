@@ -144,14 +144,14 @@ func str(args ...object.Object) object.Object {
 
 func print(args ...object.Object) object.Object {
 	for _, arg := range args {
-		fmt.Printf(arg.Inspect())
+		fmt.Printf("%s", arg.Inspect())
 	}
 	return nil
 }
 
 func println(args ...object.Object) object.Object {
 	for _, arg := range args {
-		fmt.Printf(arg.Inspect())
+		fmt.Printf("%s", arg.Inspect())
 	}
 	fmt.Println()
 	return nil

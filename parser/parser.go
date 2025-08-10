@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"lo/ast"
 	"lo/lexer"
 	"lo/token"
@@ -73,8 +74,10 @@ func (p *Parser) parseIdentifier() *ast.Identifier {
 
 func (p *Parser) parseNumber() ast.Expression {
 	if strings.Contains(p.curToken.Literal, ".") {
-		value, err := strconv.Atoi(p.curToken.Literal)
+		value, err := strconv.ParseFloat(p.curToken.Literal, 64)
 		if err != nil {
+			fmt.Println(value)
+			fmt.Println(err)
 			p.Errors = append(p.Errors, ParseError{Msg: "Could not parse float", Line: p.curToken.Line, Column: p.curToken.Column})
 			return nil
 		}
