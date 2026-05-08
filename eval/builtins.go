@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"lo/consts"
 	"lo/object"
 )
 
@@ -15,6 +16,7 @@ var builtinFunctions = map[string]object.BuiltinFunction{
 	"str":     str,
 	"print":   print,
 	"println": println,
+	"head":    head,
 }
 
 func add(args ...object.Object) object.Object {
@@ -118,15 +120,27 @@ func div(total, arg object.Object) object.Object {
 	case *object.Integer:
 		switch arg := arg.(type) {
 		case *object.Integer:
+			if arg.Value == 0 {
+				return &object.Integer{Value: 0}
+			}
 			return &object.Integer{Value: total.Value / arg.Value}
 		case *object.Float:
+			if arg.Value == 0.0 {
+				return &object.Float{Value: 0.0}
+			}
 			return &object.Float{Value: float64(total.Value) / arg.Value}
 		}
 	case *object.Float:
 		switch arg := arg.(type) {
 		case *object.Integer:
+			if arg.Value == 0 {
+				return &object.Float{Value: 0.0}
+			}
 			return &object.Float{Value: total.Value / float64(arg.Value)}
 		case *object.Float:
+			if arg.Value == 0.0 {
+				return &object.Float{Value: 0.0}
+			}
 			return &object.Float{Value: total.Value / arg.Value}
 		}
 	}
@@ -155,4 +169,25 @@ func println(args ...object.Object) object.Object {
 	}
 	fmt.Println()
 	return nil
+}
+
+func head(args ...object.Object) object.Object {
+	if len(args) != 1 {
+		return &object.Error{
+			Message: "Incorrect number of arguments to add: expected 1 argument.",
+		}
+	}
+
+	switch arg := args[0].(type) {
+	case *object.List:
+		if len(arg.Elements) < 1 {
+			return &consts.Nil
+		} else {
+			return arg.Elements[0]
+		}
+	default:
+		return &object.Error{
+			Message: "Argument Error: head should be called with a list.",
+		}
+	}
 }

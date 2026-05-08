@@ -115,3 +115,14 @@ func testStringObject(t *testing.T, obj object.Object, expected string) bool {
 
 	return true
 }
+
+func testError(t *testing.T, obj object.Object) bool {
+	t.Helper()
+	_, ok := obj.(*object.Error)
+	if !ok {
+		t.Errorf("object is not an error. got-%T (%+v)", obj, obj)
+		return false
+	}
+
+	return true
+}

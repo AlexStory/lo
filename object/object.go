@@ -3,6 +3,7 @@ package object
 import (
 	"fmt"
 	"lo/ast"
+	"strconv"
 	"strings"
 )
 
@@ -17,6 +18,7 @@ const (
 	BUILTIN_OBJ  ObjectType = "BUILTIN"
 	LIST_OBJ     ObjectType = "LIST"
 	STRING_OBJ   ObjectType = "STRING"
+	NIL_OBJ      ObjectType = "Nil"
 )
 
 type Object interface {
@@ -38,7 +40,7 @@ type Float struct {
 }
 
 func (f *Float) Type() ObjectType { return FLOAT_OBJ }
-func (f *Float) Inspect() string  { return fmt.Sprintf("%f", f.Value) }
+func (f *Float) Inspect() string  { return strconv.FormatFloat(f.Value, 'g', -1, 64) }
 
 // Boolean represents a boolean object
 type Boolean struct {
@@ -105,3 +107,9 @@ type String struct {
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
 func (s *String) Inspect() string  { return s.Value }
+
+// Nil represents a lack of value
+type Nil struct{}
+
+func (n *Nil) Type() ObjectType { return NIL_OBJ }
+func (n *Nil) Inspect() string  { return "nil" }

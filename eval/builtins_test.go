@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"lo/object"
 	"testing"
 )
 
@@ -82,4 +83,23 @@ func TestStr(t *testing.T) {
 		evaluated := testEval(tt.input)
 		testStringObject(t, evaluated, tt.expected)
 	}
+}
+
+func TestHead(t *testing.T) {
+	input := `(head [1 2 3])`
+	evaluated := testEval(input)
+
+	testIntegerObject(t, evaluated, 1)
+
+	input = `(head [])`
+	evaluated = testEval(input)
+
+	_, ok := evaluated.(*object.Nil)
+	if !ok {
+		t.Errorf("Expected result to be nil type")
+	}
+
+	input = `(head 4)`
+	evaluated = testEval(input)
+	testError(t, evaluated)
 }
