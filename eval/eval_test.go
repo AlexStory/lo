@@ -119,6 +119,31 @@ func TestMapEval(t *testing.T) {
 	}
 }
 
+func TestKeywordAsGetter(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`(:key {:key "value"})`, "value"},
+		{`(:missing {:key "value"})`, nil},
+		{`(:missing {:key "value"} "default")`, "default"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		if tt.expected == nil {
+			if _, ok := evaluated.(*object.Nil); !ok {
+				t.Errorf("expected nil, got=%T (%+v) for input %s", evaluated, evaluated, tt.input)
+			}
+		} else {
+			switch v := tt.expected.(type) {
+			case string:
+				testStringObject(t, evaluated, v)
+			}
+		}
+	}
+}
+
 // Helpers
 
 func testEval(input string) object.Object {

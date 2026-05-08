@@ -112,8 +112,10 @@ func TestGet(t *testing.T) {
 	}{
 		{`(get {:key "value"} :key)`, "value"},
 		{`(get {:key "value"} :missing)`, nil},
+		{`(get {:key "value"} :missing "default")`, "default"},
 		{`(get {1 2} 1)`, int64(2)},
 		{`(get {1 2} 2)`, nil},
+		{`(get {1 2} 2 3)`, int64(3)},
 	}
 
 	for _, tt := range tests {

@@ -198,9 +198,9 @@ func head(args ...object.Object) object.Object {
 }
 
 func get(args ...object.Object) object.Object {
-	if len(args) != 2 {
+	if len(args) != 2 && len(args) != 3 {
 		return &object.Error{
-			Message: fmt.Sprintf("Incorrect number of arguments to get: expected 2, got %d.", len(args)),
+			Message: fmt.Sprintf("Incorrect number of arguments to get: expected 2 or 3, got %d.", len(args)),
 		}
 	}
 
@@ -221,6 +221,9 @@ func get(args ...object.Object) object.Object {
 	hashed := key.HashKey()
 	pair, ok := m.Pairs[hashed]
 	if !ok {
+		if len(args) == 3 {
+			return args[2]
+		}
 		return &consts.Nil
 	}
 

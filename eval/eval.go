@@ -73,9 +73,8 @@ func evalList(le *ast.ListExpression, env *object.Environment) object.Object {
 		f = Eval(first, env)
 	}
 
-	if f.Type() != object.FUNCTION_OBJ && f.Type() != object.BUILTIN_OBJ {
-
-		return &object.Error{Message: "first element is not a function"}
+	if f.Type() != object.FUNCTION_OBJ && f.Type() != object.BUILTIN_OBJ && f.Type() != object.KEYWORD_OBJ {
+		return &object.Error{Message: fmt.Sprintf("first element is not a function, got %s", f.Type())}
 	}
 
 	args := []object.Object{}
@@ -83,7 +82,37 @@ func evalList(le *ast.ListExpression, env *object.Environment) object.Object {
 		args = append(args, Eval(arg, env))
 	}
 
+	if f.Type() == object.KEYWORD_OBJ {
+		return applyKeywordAsFunction(f.(*object.Keyword), args)
+	}
+
 	return applyFunction(f, args, env)
+}
+
+func applyKeywordAsFunction(k *object.Keyword, args []object.Object) object.Object {
+	if len(args) != 1 && len(args) != 2 {
+		return &object.Error{
+			Message: fmt.Sprintf("Incorrect number of arguments to keyword getter: expected 1 or 2, got %d.", len(args)),
+		}
+	}
+
+	m, ok := args[0].(*object.Map)
+	if !ok {
+		return &object.Error{
+			Message: fmt.Sprintf("Argument Error: first argument to keyword getter should be a map, got %s.", args[0].Type()),
+		}
+	}
+
+	hashed := k.HashKey()
+	pair, ok := m.Pairs[hashed]
+	if !ok {
+		if len(args) == 2 {
+			return args[1]
+		}
+		return &consts.Nil
+	}
+
+	return pair.Value
 }
 
 func applyFunction(fn object.Object, args []object.Object, env *object.Environment) object.Object {

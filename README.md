@@ -83,6 +83,11 @@ If a `main` function is defined in a file, it will be executed when the file is 
 ```lisp
 (def person {:name "Alice" :age 30})
 (println (get person :name))
+;; or use keyword as getter
+(println (:name person))
+;; with default values
+(println (get person :missing "not found"))
+(println (:missing person "not found"))
 ```
 
 ### Scripting
