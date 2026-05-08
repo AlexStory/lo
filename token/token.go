@@ -16,6 +16,7 @@ const (
 	CloseBrace   TokenType = "RBRACE"
 	Quote        TokenType = "QUOTE"
 	Keyword      TokenType = "KEYWORD"
+	HashParen    TokenType = "#("
 )
 
 type Token struct {

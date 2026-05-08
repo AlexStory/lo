@@ -144,6 +144,38 @@ func TestKeywordAsGetter(t *testing.T) {
 	}
 }
 
+func TestLambdaLiteral(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{"(#(+ % 1) 5)", 6},
+		{"(#(+ %1 1) 5)", 6},
+		{"(#(+ %1 %2) 5 10)", 15},
+		{"(map #(+ % 1) [1 2 3])", 0}, // Placeholder for list comparison
+	}
+
+	for i, tt := range tests {
+		if i == 3 {
+			// Special case for list
+			evaluated := testEval(tt.input)
+			list, ok := evaluated.(*object.List)
+			if !ok {
+				t.Fatalf("expected list, got %T", evaluated)
+			}
+			if len(list.Elements) != 3 {
+				t.Fatalf("expected 3 elements, got %d", len(list.Elements))
+			}
+			testIntegerObject(t, list.Elements[0], 2)
+			testIntegerObject(t, list.Elements[1], 3)
+			testIntegerObject(t, list.Elements[2], 4)
+			continue
+		}
+		evaluated := testEval(tt.input)
+		testIntegerObject(t, evaluated, tt.expected)
+	}
+}
+
 // Helpers
 
 func testEval(input string) object.Object {
@@ -167,6 +199,23 @@ func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {
 
 	if result.Value != expected {
 		t.Errorf("object has wrong value. got=%d, want=%d", result.Value, expected)
+		return false
+	}
+
+	return true
+}
+
+func testBooleanObject(t *testing.T, obj object.Object, expected bool) bool {
+	t.Helper()
+
+	result, ok := obj.(*object.Boolean)
+	if !ok {
+		t.Errorf("object is not Boolean. got=%T (%+v)", obj, obj)
+		return false
+	}
+
+	if result.Value != expected {
+		t.Errorf("object has wrong value. got=%t, want=%t", result.Value, expected)
 		return false
 	}
 

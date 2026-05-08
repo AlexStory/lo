@@ -16,6 +16,8 @@
     - String conversion (`str`).
     - List manipulation (`head`).
     - Map manipulation (`get`, `assoc`, `dissoc`).
+    - Sequence operations (`first`, `rest`, `cons`, `count`, `map`, `filter`, `reduce`).
+    - Comparison & Logic (`=`, `<`, `>`, `<=`, `>=`, `not`, `and`, `or`).
     - Scripting: File I/O (`slurp`, `spit`) and OS interaction (`env`).
 
 ## Installation
@@ -46,11 +48,27 @@ Execute a script:
 
 ## Syntax Overview
 
-### Function Definition
+### Functions
+
+Define your own functions with `defn` or anonymous functions with `\`.
 
 ```lisp
 (defn add [x y]
     (+ x y))
+
+(map (\ [x] (* x 2)) [1 2 3])
+```
+
+#### Lambda Literal
+
+A concise syntax for anonymous functions, similar to Clojure.
+
+- `%` or `%1`: First argument.
+- `%n`: n-th argument.
+
+```lisp
+(map #(+ % 1) [1 2 3]) ; [2 3 4]
+(#(+ %1 %2) 5 10)      ; 15
 ```
 
 ### Variable Definition

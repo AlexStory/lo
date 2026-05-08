@@ -65,6 +65,8 @@ func (p *Parser) parseExpression() ast.Expression {
 		return p.parseListLiteral()
 	case token.OpenBrace:
 		return p.parseMapLiteral()
+	case token.HashParen:
+		return p.parseLambdaLiteral()
 	case token.Keyword:
 		return &ast.Keyword{Token: p.curToken, Value: p.curToken.Literal}
 	default:
@@ -152,6 +154,22 @@ func (p *Parser) parseMapLiteral() *ast.MapLiteral {
 	}
 
 	return mapLiteral
+}
+
+func (p *Parser) parseLambdaLiteral() *ast.LambdaLiteral {
+	ll := &ast.LambdaLiteral{Token: p.curToken}
+	ll.Expressions = []ast.Expression{}
+
+	for p.peekToken.Type != token.CloseParen && p.peekToken.Type != token.EOF {
+		p.nextToken()
+		expr := p.parseExpression()
+		if expr != nil {
+			ll.Expressions = append(ll.Expressions, expr)
+		}
+	}
+	p.nextToken()
+
+	return ll
 }
 
 func (p *Parser) curTokenIs(t token.TokenType) bool {

@@ -5,9 +5,13 @@ import (
 	"lo/ast"
 	"lo/consts"
 	"lo/object"
+	"strconv"
 )
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
+	if node == nil {
+		return &consts.Nil
+	}
 	switch node := node.(type) {
 	case *ast.Program:
 		result := evalProgram(node.Expressions, env)
@@ -31,6 +35,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalListLiteral(node, env)
 	case *ast.MapLiteral:
 		return evalMapLiteral(node, env)
+	case *ast.LambdaLiteral:
+		return evalLambdaLiteral(node, env)
 	case *ast.Keyword:
 		return &object.Keyword{Value: node.Value}
 	}
@@ -66,6 +72,10 @@ func evalList(le *ast.ListExpression, env *object.Environment) object.Object {
 			return evalLambda(le, env)
 		case "if":
 			return evalIf(le, env)
+		case "and":
+			return evalAnd(le, env)
+		case "or":
+			return evalOr(le, env)
 		default:
 			f = evalIdentifier(ident, env)
 		}
@@ -183,20 +193,27 @@ func isError(obj object.Object) bool {
 
 func evalIdentifier(ident *ast.Identifier, env *object.Environment) object.Object {
 
-	switch ident.Value {
+	name := ident.Value
+	if name == "%" {
+		name = "%1"
+	}
+
+	switch name {
 	case "true":
 		return &consts.TrueBool
 	case "false":
 		return &consts.FalseBool
+	case "nil":
+		return &consts.Nil
 	}
 
-	if b, ok := builtinFunctions[ident.Value]; ok {
+	if b, ok := GetBuiltin(name); ok {
 		return &object.Builtin{Fn: b}
 	}
 
-	val, ok := env.Get(ident.Value)
+	val, ok := env.Get(name)
 	if !ok {
-		return &object.Error{Message: "identifier not found: " + ident.Value}
+		return &object.Error{Message: "identifier not found: " + name}
 	}
 
 	return val
@@ -270,6 +287,65 @@ func evalLambda(le *ast.ListExpression, env *object.Environment) object.Object {
 	return &object.Function{Name: "lambda", Parameters: params, Body: body, Env: env}
 }
 
+func evalLambdaLiteral(ll *ast.LambdaLiteral, env *object.Environment) object.Object {
+	maxArg := 0
+
+	// Find all %n and %& in the expressions
+	var findArgs func(node ast.Node)
+	findArgs = func(node ast.Node) {
+		switch n := node.(type) {
+		case *ast.Identifier:
+			if n.Value == "%" {
+				if maxArg < 1 {
+					maxArg = 1
+				}
+			} else if len(n.Value) > 1 && n.Value[0] == '%' {
+				if n.Value == "%&" {
+					// TODO: handle variadic if needed
+				} else {
+					argNum, err := strconv.Atoi(n.Value[1:])
+					if err == nil {
+						if argNum > maxArg {
+							maxArg = argNum
+						}
+					}
+				}
+			}
+		case *ast.ListExpression:
+			for _, expr := range n.Expressions {
+				findArgs(expr)
+			}
+		case *ast.ListLiteral:
+			for _, expr := range n.Expressions {
+				findArgs(expr)
+			}
+		case *ast.MapLiteral:
+			for _, pair := range n.Pairs {
+				findArgs(pair.Key)
+				findArgs(pair.Value)
+			}
+		case *ast.LambdaLiteral:
+			// Don't descend into nested lambdas for argument discovery of the outer one
+		}
+	}
+
+	for _, expr := range ll.Expressions {
+		findArgs(expr)
+	}
+
+	params := make([]*ast.Identifier, maxArg)
+	for i := 0; i < maxArg; i++ {
+		params[i] = &ast.Identifier{Value: fmt.Sprintf("%%%d", i+1)}
+	}
+
+	return &object.Function{
+		Name:       "lambda",
+		Parameters: params,
+		Body:       []ast.Expression{&ast.ListExpression{Token: ll.Token, Expressions: ll.Expressions}},
+		Env:        env,
+	}
+}
+
 func evalIf(le *ast.ListExpression, env *object.Environment) object.Object {
 
 	if len(le.Expressions) != 4 {
@@ -281,4 +357,39 @@ func evalIf(le *ast.ListExpression, env *object.Environment) object.Object {
 		return Eval(le.Expressions[2], env)
 	}
 	return Eval(le.Expressions[3], env)
+}
+
+func evalAnd(le *ast.ListExpression, env *object.Environment) object.Object {
+	var result object.Object = &consts.TrueBool
+	for _, exp := range le.Expressions[1:] {
+		result = Eval(exp, env)
+		if isFalsey(result) {
+			return result
+		}
+	}
+	return result
+}
+
+func evalOr(le *ast.ListExpression, env *object.Environment) object.Object {
+	var result object.Object = &consts.FalseBool
+	for _, exp := range le.Expressions[1:] {
+		result = Eval(exp, env)
+		if !isFalsey(result) {
+			return result
+		}
+	}
+	return result
+}
+
+func isFalsey(obj object.Object) bool {
+	if obj == nil {
+		return true
+	}
+	if b, ok := obj.(*object.Boolean); ok {
+		return !b.Value
+	}
+	if obj.Type() == object.NIL_OBJ {
+		return true
+	}
+	return false
 }

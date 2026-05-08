@@ -47,6 +47,16 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.OpenBrace, l, string(l.ch))
 	case '}':
 		tok = newToken(token.CloseBrace, l, string(l.ch))
+	case '#':
+		if l.peekChar() == '(' {
+			tok.Column = l.column
+			tok.Line = l.line
+			tok.Type = token.HashParen
+			tok.Literal = "#("
+			l.readChar()
+			l.readChar()
+			return tok
+		}
 	case '"':
 		tok.Type = token.String
 		tok.Column = l.column
@@ -106,6 +116,14 @@ func (l *Lexer) readChar() {
 	} else {
 		l.column += charLength
 	}
+}
+
+func (l *Lexer) peekChar() rune {
+	if l.readPosition >= len(l.input) {
+		return 0
+	}
+	r, _ := utf8.DecodeRuneInString(l.input[l.readPosition:])
+	return r
 }
 
 func isDigit(ch rune) bool {

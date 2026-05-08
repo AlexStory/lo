@@ -283,3 +283,150 @@ func TestEnv(t *testing.T) {
 		t.Errorf("expected nil for non-existent env var, got=%T", evaluated)
 	}
 }
+
+func TestComparison(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"(= 1 1)", true},
+		{"(= 1 2)", false},
+		{"(= \"a\" \"a\")", true},
+		{"(= \"a\" \"b\")", false},
+		{"(= :a :a)", true},
+		{"(= :a :b)", false},
+		{"(= true true)", true},
+		{"(= true false)", false},
+		{"(= nil nil)", true},
+		{"(= 1 1 1)", true},
+		{"(= 1 1 2)", false},
+
+		{"(< 1 2)", true},
+		{"(< 2 1)", false},
+		{"(< 1 1)", false},
+		{"(< 1 2 3)", true},
+		{"(< 1 3 2)", false},
+
+		{"(> 2 1)", true},
+		{"(> 1 2)", false},
+		{"(> 2 2)", false},
+		{"(> 3 2 1)", true},
+
+		{"(<= 1 2)", true},
+		{"(<= 1 1)", true},
+		{"(<= 2 1)", false},
+
+		{"(>= 2 1)", true},
+		{"(>= 2 2)", true},
+		{"(>= 1 2)", false},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		boolean, ok := evaluated.(*object.Boolean)
+		if !ok {
+			t.Fatalf("expected boolean, got %T for %s", evaluated, tt.input)
+		}
+		if boolean.Value != tt.expected {
+			t.Errorf("expected %t, got %t for %s", tt.expected, boolean.Value, tt.input)
+		}
+	}
+}
+
+func TestLogical(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"(not true)", false},
+		{"(not false)", true},
+		{"(not nil)", true},
+		{"(not 1)", false},
+
+		{"(and true true)", true},
+		{"(and true false)", false},
+		{"(and false true)", false},
+		{"(and 1 2)", int64(2)},
+		{"(and false (/ 1 0))", false}, // short-circuit
+
+		{"(or true false)", true},
+		{"(or false true)", true},
+		{"(or false false)", false},
+		{"(or 1 2)", int64(1)},
+		{"(or true (/ 1 0))", true}, // short-circuit
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case bool:
+			testBooleanObject(t, evaluated, expected)
+		case int64:
+			testIntegerObject(t, evaluated, expected)
+		}
+	}
+}
+
+func TestSequenceFunctions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"(first [1 2 3])", int64(1)},
+		{"(rest [1 2 3])", []int64{2, 3}},
+		{"(cons 1 [2 3])", []int64{1, 2, 3}},
+		{"(count [1 2 3])", int64(3)},
+		{"(count \"abc\")", int64(3)},
+		{"(count {:a 1 :b 2})", int64(2)},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case int64:
+			testIntegerObject(t, evaluated, expected)
+		case []int64:
+			list, ok := evaluated.(*object.List)
+			if !ok {
+				t.Fatalf("expected list, got %T", evaluated)
+			}
+			if len(list.Elements) != len(expected) {
+				t.Fatalf("expected length %d, got %d", len(expected), len(list.Elements))
+			}
+			for i, val := range expected {
+				testIntegerObject(t, list.Elements[i], val)
+			}
+		}
+	}
+}
+
+func TestSequenceTransformations(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"(map (\\ [x] (* x 2)) [1 2 3])", []int64{2, 4, 6}},
+		{"(filter (\\ [x] (> x 1)) [1 2 3])", []int64{2, 3}},
+		{"(reduce + [1 2 3])", int64(6)},
+		{"(reduce + 10 [1 2 3])", int64(16)},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case int64:
+			testIntegerObject(t, evaluated, expected)
+		case []int64:
+			list, ok := evaluated.(*object.List)
+			if !ok {
+				t.Fatalf("expected list, got %T", evaluated)
+			}
+			if len(list.Elements) != len(expected) {
+				t.Fatalf("expected length %d, got %d", len(expected), len(list.Elements))
+			}
+			for i, val := range expected {
+				testIntegerObject(t, list.Elements[i], val)
+			}
+		}
+	}
+}

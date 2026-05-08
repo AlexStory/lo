@@ -101,3 +101,12 @@ type MapPair struct {
 
 func (ml *MapLiteral) expressionNode()      {}
 func (ml *MapLiteral) TokenLiteral() string { return ml.Token.Literal }
+
+// LambdaLiteral represents a #(...) lambda literal
+type LambdaLiteral struct {
+	Token       token.Token // The #( token
+	Expressions []Expression
+}
+
+func (ll *LambdaLiteral) expressionNode()      {}
+func (ll *LambdaLiteral) TokenLiteral() string { return ll.Token.Literal }
