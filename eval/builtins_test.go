@@ -135,6 +135,123 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestAssoc(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected map[string]interface{}
+	}{
+		{
+			input: `(assoc {:a 1} :b 2)`,
+			expected: map[string]interface{}{
+				":a": int64(1),
+				":b": int64(2),
+			},
+		},
+		{
+			input: `(assoc {:a 1} :a 2)`,
+			expected: map[string]interface{}{
+				":a": int64(2),
+			},
+		},
+		{
+			input: `(assoc {:a 1} :b 2 :c 3)`,
+			expected: map[string]interface{}{
+				":a": int64(1),
+				":b": int64(2),
+				":c": int64(3),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		m, ok := evaluated.(*object.Map)
+		if !ok {
+			t.Fatalf("expected map, got %T", evaluated)
+		}
+
+		if len(m.Pairs) != len(tt.expected) {
+			t.Fatalf("expected %d pairs, got %d", len(tt.expected), len(m.Pairs))
+		}
+
+		for _, pair := range m.Pairs {
+			key := pair.Key.Inspect()
+			expectedVal := tt.expected[key]
+			switch v := expectedVal.(type) {
+			case int64:
+				testIntegerObject(t, pair.Value, v)
+			}
+		}
+	}
+
+	// Test immutability
+	input := `(def my-map {:a 1}) (assoc my-map :b 2) my-map`
+	evaluated := testEval(input)
+	m, ok := evaluated.(*object.Map)
+	if !ok {
+		t.Fatalf("expected map, got %T", evaluated)
+	}
+	if len(m.Pairs) != 1 {
+		t.Errorf("original map should have 1 pair, got %d", len(m.Pairs))
+	}
+}
+
+func TestDissoc(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected map[string]interface{}
+	}{
+		{
+			input: `(dissoc {:a 1 :b 2} :b)`,
+			expected: map[string]interface{}{
+				":a": int64(1),
+			},
+		},
+		{
+			input:    `(dissoc {:a 1 :b 2} :a :b)`,
+			expected: map[string]interface{}{},
+		},
+		{
+			input: `(dissoc {:a 1} :c)`,
+			expected: map[string]interface{}{
+				":a": int64(1),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		m, ok := evaluated.(*object.Map)
+		if !ok {
+			t.Fatalf("expected map, got %T", evaluated)
+		}
+
+		if len(m.Pairs) != len(tt.expected) {
+			t.Fatalf("expected %d pairs, got %d for input %s", len(tt.expected), len(m.Pairs), tt.input)
+		}
+
+		for _, pair := range m.Pairs {
+			key := pair.Key.Inspect()
+			expectedVal := tt.expected[key]
+			switch v := expectedVal.(type) {
+			case int64:
+				testIntegerObject(t, pair.Value, v)
+			}
+		}
+	}
+
+	// Test immutability
+	input := `(def my-map {:a 1}) (dissoc my-map :a) my-map`
+	evaluated := testEval(input)
+	m, ok := evaluated.(*object.Map)
+	if !ok {
+		t.Fatalf("expected map, got %T", evaluated)
+	}
+	if len(m.Pairs) != 1 {
+		t.Errorf("original map should have 1 pair, got %d", len(m.Pairs))
+	}
+}
+
 func TestSlurpSpit(t *testing.T) {
 	filename := "test_slurp_spit.txt"
 	content := "hello lo language"

@@ -15,7 +15,7 @@
     - Printing (`print`, `println`).
     - String conversion (`str`).
     - List manipulation (`head`).
-    - Map access (`get`).
+    - Map manipulation (`get`, `assoc`, `dissoc`).
     - Scripting: File I/O (`slurp`, `spit`) and OS interaction (`env`).
 
 ## Installation
@@ -88,6 +88,16 @@ If a `main` function is defined in a file, it will be executed when the file is 
 ;; with default values
 (println (get person :missing "not found"))
 (println (:missing person "not found"))
+```
+
+### Map Manipulation
+
+Maps are immutable. `assoc` and `dissoc` return new maps.
+
+```lisp
+(def m {:a 1})
+(def m2 (assoc m :b 2 :c 3)) ; {:a 1 :b 2 :c 3}
+(def m3 (dissoc m2 :a :b))    ; {:c 3}
 ```
 
 ### Scripting

@@ -19,6 +19,8 @@ var builtinFunctions = map[string]object.BuiltinFunction{
 	"println": println,
 	"head":    head,
 	"get":     get,
+	"assoc":   assoc,
+	"dissoc":  dissoc,
 	"slurp":   slurp,
 	"spit":    spit,
 	"env":     getenv,
@@ -228,6 +230,83 @@ func get(args ...object.Object) object.Object {
 	}
 
 	return pair.Value
+}
+
+func assoc(args ...object.Object) object.Object {
+	if len(args) < 3 {
+		return &object.Error{
+			Message: fmt.Sprintf("Incorrect number of arguments to assoc: expected at least 3, got %d.", len(args)),
+		}
+	}
+
+	if (len(args)-1)%2 != 0 {
+		return &object.Error{
+			Message: fmt.Sprintf("Incorrect number of arguments to assoc: expected even number of key-value pairs, got %d.", len(args)-1),
+		}
+	}
+
+	m, ok := args[0].(*object.Map)
+	if !ok {
+		return &object.Error{
+			Message: fmt.Sprintf("Argument Error: first argument to assoc should be a map, got %s.", args[0].Type()),
+		}
+	}
+
+	// Create a new map to maintain immutability
+	newPairs := make(map[object.HashKey]object.MapPair)
+	for k, v := range m.Pairs {
+		newPairs[k] = v
+	}
+
+	for i := 1; i < len(args); i += 2 {
+		key, ok := args[i].(object.Hashable)
+		if !ok {
+			return &object.Error{
+				Message: fmt.Sprintf("Argument Error: key in assoc should be a hashable object, got %s.", args[i].Type()),
+			}
+		}
+
+		value := args[i+1]
+		hashed := key.HashKey()
+		newPairs[hashed] = object.MapPair{Key: args[i], Value: value}
+	}
+
+	return &object.Map{Pairs: newPairs}
+}
+
+func dissoc(args ...object.Object) object.Object {
+	if len(args) < 2 {
+		return &object.Error{
+			Message: fmt.Sprintf("Incorrect number of arguments to dissoc: expected at least 2, got %d.", len(args)),
+		}
+	}
+
+	m, ok := args[0].(*object.Map)
+	if !ok {
+		return &object.Error{
+			Message: fmt.Sprintf("Argument Error: first argument to dissoc should be a map, got %s.", args[0].Type()),
+		}
+	}
+
+	// Create a new map to maintain immutability
+	newPairs := make(map[object.HashKey]object.MapPair)
+	for k, v := range m.Pairs {
+		newPairs[k] = v
+	}
+
+	for i := 1; i < len(args); i++ {
+		key, ok := args[i].(object.Hashable)
+		if !ok {
+			return &object.Error{
+				Message: fmt.Sprintf("Argument Error: key in dissoc should be a hashable object, got %s.", args[i].Type()),
+			}
+		}
+
+		hashed := key.HashKey()
+		delete(newPairs, hashed)
+	}
+
+	return &object.Map{Pairs: newPairs}
 }
 
 func slurp(args ...object.Object) object.Object {
