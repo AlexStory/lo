@@ -43,11 +43,23 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.OpenBracket, l, string(l.ch))
 	case ']':
 		tok = newToken(token.CloseBracket, l, string(l.ch))
+	case '{':
+		tok = newToken(token.OpenBrace, l, string(l.ch))
+	case '}':
+		tok = newToken(token.CloseBrace, l, string(l.ch))
 	case '"':
 		tok.Type = token.String
 		tok.Column = l.column
 		tok.Line = l.line
 		tok.Literal = l.readString()
+		return tok
+	case ':':
+		tok.Column = l.column
+		tok.Line = l.line
+		tok.Type = token.Keyword
+		l.readChar()
+		value := readIdentifier(l)
+		tok.Literal = ":" + value
 		return tok
 	case 0:
 		tok = newToken(token.EOF, l, "")

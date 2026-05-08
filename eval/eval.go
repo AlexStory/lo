@@ -29,6 +29,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalIdentifier(node, env)
 	case *ast.ListLiteral:
 		return evalListLiteral(node, env)
+	case *ast.MapLiteral:
+		return evalMapLiteral(node, env)
+	case *ast.Keyword:
+		return &object.Keyword{Value: node.Value}
 	}
 
 	return nil
@@ -113,6 +117,39 @@ func evalListLiteral(ll *ast.ListLiteral, env *object.Environment) object.Object
 		elements = append(elements, evaluated)
 	}
 	return &object.List{Elements: elements}
+}
+
+func evalMapLiteral(ml *ast.MapLiteral, env *object.Environment) object.Object {
+	pairs := make(map[object.HashKey]object.MapPair)
+
+	for _, pair := range ml.Pairs {
+		key := Eval(pair.Key, env)
+		if isError(key) {
+			return key
+		}
+
+		hashKey, ok := key.(object.Hashable)
+		if !ok {
+			return &object.Error{Message: fmt.Sprintf("unusable as hash key: %s", key.Type())}
+		}
+
+		value := Eval(pair.Value, env)
+		if isError(value) {
+			return value
+		}
+
+		hashed := hashKey.HashKey()
+		pairs[hashed] = object.MapPair{Key: key, Value: value}
+	}
+
+	return &object.Map{Pairs: pairs}
+}
+
+func isError(obj object.Object) bool {
+	if obj != nil {
+		return obj.Type() == object.ERROR_OBJ
+	}
+	return false
 }
 
 func evalIdentifier(ident *ast.Identifier, env *object.Environment) object.Object {

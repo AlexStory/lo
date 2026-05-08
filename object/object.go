@@ -2,6 +2,7 @@ package object
 
 import (
 	"fmt"
+	"hash/fnv"
 	"lo/ast"
 	"strconv"
 	"strings"
@@ -18,8 +19,19 @@ const (
 	BUILTIN_OBJ  ObjectType = "BUILTIN"
 	LIST_OBJ     ObjectType = "LIST"
 	STRING_OBJ   ObjectType = "STRING"
+	KEYWORD_OBJ  ObjectType = "KEYWORD"
+	MAP_OBJ      ObjectType = "MAP"
 	NIL_OBJ      ObjectType = "Nil"
 )
+
+type HashKey struct {
+	Type  ObjectType
+	Value uint64
+}
+
+type Hashable interface {
+	HashKey() HashKey
+}
 
 type Object interface {
 	Type() ObjectType
@@ -33,6 +45,9 @@ type Integer struct {
 
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
 func (i *Integer) Inspect() string  { return fmt.Sprintf("%d", i.Value) }
+func (i *Integer) HashKey() HashKey {
+	return HashKey{Type: i.Type(), Value: uint64(i.Value)}
+}
 
 // Float represents a float object
 type Float struct {
@@ -49,6 +64,15 @@ type Boolean struct {
 
 func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
 func (b *Boolean) Inspect() string  { return fmt.Sprintf("%t", b.Value) }
+func (b *Boolean) HashKey() HashKey {
+	var value uint64
+	if b.Value {
+		value = 1
+	} else {
+		value = 0
+	}
+	return HashKey{Type: b.Type(), Value: value}
+}
 
 // Error represents an error object
 type Error struct {
@@ -107,6 +131,47 @@ type String struct {
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
 func (s *String) Inspect() string  { return s.Value }
+func (s *String) HashKey() HashKey {
+	h := fnv.New64a()
+	h.Write([]byte(s.Value))
+	return HashKey{Type: s.Type(), Value: h.Sum64()}
+}
+
+// Keyword represents a keyword object
+type Keyword struct {
+	Value string
+}
+
+func (k *Keyword) Type() ObjectType { return KEYWORD_OBJ }
+func (k *Keyword) Inspect() string  { return k.Value }
+func (k *Keyword) HashKey() HashKey {
+	h := fnv.New64a()
+	h.Write([]byte(k.Value))
+	return HashKey{Type: k.Type(), Value: h.Sum64()}
+}
+
+type MapPair struct {
+	Key   Object
+	Value Object
+}
+
+// Map represents a map object
+type Map struct {
+	Pairs map[HashKey]MapPair
+}
+
+func (m *Map) Type() ObjectType { return MAP_OBJ }
+func (m *Map) Inspect() string {
+	var out strings.Builder
+	pairs := []string{}
+	for _, pair := range m.Pairs {
+		pairs = append(pairs, fmt.Sprintf("%s %s", pair.Key.Inspect(), pair.Value.Inspect()))
+	}
+	out.WriteString("{")
+	out.WriteString(strings.Join(pairs, ", "))
+	out.WriteString("}")
+	return out.String()
+}
 
 // Nil represents a lack of value
 type Nil struct{}

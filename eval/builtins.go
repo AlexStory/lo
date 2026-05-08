@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"lo/consts"
@@ -17,6 +18,10 @@ var builtinFunctions = map[string]object.BuiltinFunction{
 	"print":   print,
 	"println": println,
 	"head":    head,
+	"get":     get,
+	"slurp":   slurp,
+	"spit":    spit,
+	"env":     getenv,
 }
 
 func add(args ...object.Object) object.Object {
@@ -190,4 +195,111 @@ func head(args ...object.Object) object.Object {
 			Message: "Argument Error: head should be called with a list.",
 		}
 	}
+}
+
+func get(args ...object.Object) object.Object {
+	if len(args) != 2 {
+		return &object.Error{
+			Message: fmt.Sprintf("Incorrect number of arguments to get: expected 2, got %d.", len(args)),
+		}
+	}
+
+	m, ok := args[0].(*object.Map)
+	if !ok {
+		return &object.Error{
+			Message: fmt.Sprintf("Argument Error: first argument to get should be a map, got %s.", args[0].Type()),
+		}
+	}
+
+	key, ok := args[1].(object.Hashable)
+	if !ok {
+		return &object.Error{
+			Message: fmt.Sprintf("Argument Error: second argument to get should be a hashable object, got %s.", args[1].Type()),
+		}
+	}
+
+	hashed := key.HashKey()
+	pair, ok := m.Pairs[hashed]
+	if !ok {
+		return &consts.Nil
+	}
+
+	return pair.Value
+}
+
+func slurp(args ...object.Object) object.Object {
+	if len(args) != 1 {
+		return &object.Error{
+			Message: fmt.Sprintf("Incorrect number of arguments to slurp: expected 1, got %d.", len(args)),
+		}
+	}
+
+	path, ok := args[0].(*object.String)
+	if !ok {
+		return &object.Error{
+			Message: fmt.Sprintf("Argument Error: argument to slurp should be a string (file path), got %s.", args[0].Type()),
+		}
+	}
+
+	content, err := os.ReadFile(path.Value)
+	if err != nil {
+		return &object.Error{
+			Message: fmt.Sprintf("IO Error: failed to read file %s: %s", path.Value, err),
+		}
+	}
+
+	return &object.String{Value: string(content)}
+}
+
+func spit(args ...object.Object) object.Object {
+	if len(args) != 2 {
+		return &object.Error{
+			Message: fmt.Sprintf("Incorrect number of arguments to spit: expected 2, got %d.", len(args)),
+		}
+	}
+
+	path, ok := args[0].(*object.String)
+	if !ok {
+		return &object.Error{
+			Message: fmt.Sprintf("Argument Error: first argument to spit should be a string (file path), got %s.", args[0].Type()),
+		}
+	}
+
+	content, ok := args[1].(*object.String)
+	if !ok {
+		return &object.Error{
+			Message: fmt.Sprintf("Argument Error: second argument to spit should be a string, got %s.", args[1].Type()),
+		}
+	}
+
+	err := os.WriteFile(path.Value, []byte(content.Value), 0644)
+	if err != nil {
+		return &object.Error{
+			Message: fmt.Sprintf("IO Error: failed to write file %s: %s", path.Value, err),
+		}
+	}
+
+	return &consts.Nil
+}
+
+func getenv(args ...object.Object) object.Object {
+	if len(args) != 1 {
+		return &object.Error{
+			Message: fmt.Sprintf("Incorrect number of arguments to env: expected 1, got %d.", len(args)),
+		}
+	}
+
+	name, ok := args[0].(*object.String)
+	if !ok {
+		return &object.Error{
+			Message: fmt.Sprintf("Argument Error: argument to env should be a string (env var name), got %s.", args[0].Type()),
+		}
+	}
+
+	val := os.Getenv(name.Value)
+	if val == "" {
+		return &consts.Nil
+	}
+
+	return &object.String{Value: val}
 }

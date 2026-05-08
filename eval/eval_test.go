@@ -70,6 +70,55 @@ func TestDef(t *testing.T) {
 	}
 }
 
+func TestKeywordEval(t *testing.T) {
+	input := ":key"
+	evaluated := testEval(input)
+
+	keyword, ok := evaluated.(*object.Keyword)
+	if !ok {
+		t.Fatalf("object is not Keyword. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	if keyword.Value != ":key" {
+		t.Errorf("keyword has wrong value. got=%s, want=%s", keyword.Value, ":key")
+	}
+}
+
+func TestMapEval(t *testing.T) {
+	input := `{:key "value" 1 2}`
+	evaluated := testEval(input)
+
+	resultMap, ok := evaluated.(*object.Map)
+	if !ok {
+		t.Fatalf("object is not Map. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	if len(resultMap.Pairs) != 2 {
+		t.Errorf("map has wrong number of pairs. got=%d", len(resultMap.Pairs))
+	}
+
+	expected := map[string]interface{}{
+		":key": "value",
+		"1":    int64(2),
+	}
+
+	for _, pair := range resultMap.Pairs {
+		key := pair.Key.Inspect()
+		expectedValue, ok := expected[key]
+		if !ok {
+			t.Errorf("unexpected key: %s", key)
+			continue
+		}
+
+		switch v := expectedValue.(type) {
+		case string:
+			testStringObject(t, pair.Value, v)
+		case int64:
+			testIntegerObject(t, pair.Value, v)
+		}
+	}
+}
+
 // Helpers
 
 func testEval(input string) object.Object {

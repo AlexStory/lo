@@ -12,7 +12,10 @@ const (
 	CloseParen   TokenType = "RPAREN"
 	OpenBracket  TokenType = "LBRACKET"
 	CloseBracket TokenType = "RBRACKET"
+	OpenBrace    TokenType = "LBRACE"
+	CloseBrace   TokenType = "RBRACE"
 	Quote        TokenType = "QUOTE"
+	Keyword      TokenType = "KEYWORD"
 )
 
 type Token struct {

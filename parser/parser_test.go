@@ -134,7 +134,84 @@ func TestDefnParse(t *testing.T) {
 
 }
 
+func TestKeywordParse(t *testing.T) {
+	input := ":key"
+	l := lexer.New(input, "test")
+	p := New(l)
+
+	program := p.Parse()
+
+	if len(program.Expressions) != 1 {
+		t.Fatalf("program.Expressions does not contain 1 expression. got=%d", len(program.Expressions))
+	}
+
+	expr := program.Expressions[0]
+	keyword, ok := expr.(*ast.Keyword)
+	if !ok {
+		t.Fatalf("expr not *ast.Keyword. got=%T", expr)
+	}
+
+	if keyword.Value != ":key" {
+		t.Fatalf("keyword.Value not :key. got=%s", keyword.Value)
+	}
+}
+
+func TestMapLiteralParse(t *testing.T) {
+	input := `{:key "value" 1 2.0}`
+	l := lexer.New(input, "test")
+	p := New(l)
+
+	program := p.Parse()
+
+	if len(program.Expressions) != 1 {
+		t.Fatalf("program.Expressions does not contain 1 expression. got=%d", len(program.Expressions))
+	}
+
+	expr := program.Expressions[0]
+	mapLiteral, ok := expr.(*ast.MapLiteral)
+	if !ok {
+		t.Fatalf("expr not *ast.MapLiteral. got=%T", expr)
+	}
+
+	if len(mapLiteral.Pairs) != 2 {
+		t.Fatalf("mapLiteral.Pairs does not contain 2 pairs. got=%d", len(mapLiteral.Pairs))
+	}
+
+	// First pair
+	testKeyword(t, mapLiteral.Pairs[0].Key, ":key")
+	testStringLiteral(t, mapLiteral.Pairs[0].Value, "value")
+
+	// Second pair
+	testIntLiteral(t, mapLiteral.Pairs[1].Key, 1)
+	testFloatLiteral(t, mapLiteral.Pairs[1].Value, 2.0)
+}
+
 // Helpers
+func testKeyword(t *testing.T, expr ast.Expression, value string) {
+	t.Helper()
+
+	keyword, ok := expr.(*ast.Keyword)
+	if !ok {
+		t.Fatalf("expr not *ast.Keyword. got=%T", expr)
+	}
+
+	if keyword.Value != value {
+		t.Fatalf("keyword.Value not %s. got=%s", value, keyword.Value)
+	}
+}
+
+func testStringLiteral(t *testing.T, expr ast.Expression, value string) {
+	t.Helper()
+
+	stringLiteral, ok := expr.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("expr not *ast.StringLiteral. got=%T", expr)
+	}
+
+	if stringLiteral.Value != value {
+		t.Fatalf("stringLiteral.Value not %s. got=%s", value, stringLiteral.Value)
+	}
+}
 func testIdent(t *testing.T, expr ast.Expression, value string) {
 	t.Helper()
 

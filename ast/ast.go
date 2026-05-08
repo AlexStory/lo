@@ -78,3 +78,26 @@ type StringLiteral struct {
 
 func (sl *StringLiteral) expressionNode()      {}
 func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
+
+// Keyword represents a keyword literal node
+type Keyword struct {
+	Token token.Token // The token.KEYWORD token
+	Value string
+}
+
+func (k *Keyword) expressionNode()      {}
+func (k *Keyword) TokenLiteral() string { return k.Token.Literal }
+
+// MapLiteral represents a map literal node
+type MapLiteral struct {
+	Token token.Token // The { token
+	Pairs []MapPair
+}
+
+type MapPair struct {
+	Key   Expression
+	Value Expression
+}
+
+func (ml *MapLiteral) expressionNode()      {}
+func (ml *MapLiteral) TokenLiteral() string { return ml.Token.Literal }
