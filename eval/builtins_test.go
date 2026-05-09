@@ -430,3 +430,41 @@ func TestSequenceTransformations(t *testing.T) {
 		}
 	}
 }
+
+func TestNewBuiltins(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"(concat [1] [2 3] [4])", []int64{1, 2, 3, 4}},
+		{"(empty? [])", true},
+		{"(empty? [1])", false},
+		{"(empty? {})", true},
+		{"(empty? {:a 1})", false},
+		{"(empty? \"\")", true},
+		{"(empty? \"a\")", false},
+		{"(empty? nil)", true},
+		{"(nil? nil)", true},
+		{"(nil? false)", false},
+		{"(nil? 0)", false},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case bool:
+			testBooleanObject(t, evaluated, expected)
+		case []int64:
+			list, ok := evaluated.(*object.List)
+			if !ok {
+				t.Fatalf("expected list, got %T", evaluated)
+			}
+			if len(list.Elements) != len(expected) {
+				t.Fatalf("expected length %d, got %d", len(expected), len(list.Elements))
+			}
+			for i, val := range expected {
+				testIntegerObject(t, list.Elements[i], val)
+			}
+		}
+	}
+}

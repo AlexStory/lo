@@ -1,0 +1,6 @@
+(import stuff)
+
+(defn main [& args]
+  (println "Hello from " "test-app!")
+  (println "Arguments: " args)
+  (println (stuff/add 3 4)))

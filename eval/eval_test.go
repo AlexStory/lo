@@ -1,11 +1,15 @@
 package eval
 
 import (
+	"lo/expand"
 	"lo/lexer"
 	"lo/object"
 	"lo/parser"
+	"os"
 	"testing"
 )
+
+var testExpander = expand.New(&Evaluator{})
 
 func TestEvalIntegerExpression(t *testing.T) {
 	tests := []struct {
@@ -176,6 +180,118 @@ func TestLambdaLiteral(t *testing.T) {
 	}
 }
 
+func TestLet(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{"(let [x 1] x)", 1},
+		{"(let [x 1 y 2] (+ x y))", 3},
+		{"(let [x 1] (let [x 2] x))", 2},
+		{"(let [x 1] (let [y x] y))", 1},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testIntegerObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestMacros(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"(defmacro unless [condition body] (list 'if condition nil body)) (unless false 10)", int64(10)},
+		{"(defmacro unless [condition body] (list 'if condition nil body)) (unless true 10)", nil},
+		{"(def x 5) (-> x (+ 1) (* 2))", int64(12)},
+		{"(->> [1 2 3] (map #(+ % 1)) (filter #(> % 2)))", []int64{3, 4}},
+	}
+
+	for i, tt := range tests {
+		evaluated := testEval(tt.input)
+		if tt.expected == nil {
+			if _, ok := evaluated.(*object.Nil); !ok {
+				t.Errorf("tests[%d] - expected nil, got=%T (%+v) for input %s", i, evaluated, evaluated, tt.input)
+			}
+		} else {
+			switch v := tt.expected.(type) {
+			case int64:
+				testIntegerObject(t, evaluated, v)
+			case []int64:
+				list, ok := evaluated.(*object.List)
+				if !ok {
+					t.Fatalf("tests[%d] - expected list, got %T", i, evaluated)
+				}
+				if len(list.Elements) != len(v) {
+					t.Fatalf("tests[%d] - expected length %d, got %d", i, len(v), len(list.Elements))
+				}
+				for j, val := range v {
+					testIntegerObject(t, list.Elements[j], val)
+				}
+			}
+		}
+	}
+}
+
+func TestQuote(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"'a", "a"},
+		{"'(1 2 3)", "[1 2 3]"},
+		{"(quote (1 2 3))", "[1 2 3]"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		if evaluated.Inspect() != tt.expected {
+			t.Errorf("expected %s, got %s", tt.expected, evaluated.Inspect())
+		}
+	}
+}
+
+func TestWhen(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"(when true 1)", int64(1)},
+		{"(when false 1)", nil},
+		{"(when true 1 2)", int64(2)},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		if tt.expected == nil {
+			if _, ok := evaluated.(*object.Nil); !ok {
+				t.Errorf("expected nil, got=%T", evaluated)
+			}
+		} else {
+			testIntegerObject(t, evaluated, tt.expected.(int64))
+		}
+	}
+}
+
+func TestThreadingMacros(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{"(-> 5 (+ 1) (* 2))", 12},
+		{"(-> 5 (+ 1) *)", 6}, // one-arg threading
+		{"(->> 5 (+ 1) (* 2))", 12},
+		{"(->> 5 (- 10))", 5}, // (->> 5 (- 10)) => (- 10 5)
+		{"(-> 5 (- 10))", -5}, // (-> 5 (- 10)) => (- 5 10)
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testIntegerObject(t, evaluated, tt.expected)
+	}
+}
+
 // Helpers
 
 func testEval(input string) object.Object {
@@ -184,8 +300,38 @@ func testEval(input string) object.Object {
 	program := p.Parse()
 
 	env := object.NewEnvironment()
+	loadStdlibForTest(env)
 
-	return Eval(program, env)
+	expanded, err := testExpander.ExpandMacros(program, env)
+	if err != nil {
+		return &object.Error{Message: err.Error()}
+	}
+
+	evaluator := &Evaluator{Expander: testExpander}
+	return evaluator.Eval(expanded, env)
+}
+
+func loadStdlibForTest(env *object.Environment) {
+	// For tests, we'll continue to read the file from the disk to avoid
+	// needing to export the embedded FS from main or duplicating it here.
+	// This keeps the test logic simple and independent of the main package's embedding.
+	paths := []string{"../stdlib.lo", "./stdlib.lo"}
+	var contents []byte
+	var err error
+	for _, p := range paths {
+		contents, err = os.ReadFile(p)
+		if err == nil {
+			l := lexer.New(string(contents), p)
+			parser := parser.New(l)
+			program := parser.Parse()
+			expanded, err := testExpander.ExpandMacros(program, env)
+			if err == nil {
+				evaluator := &Evaluator{Expander: testExpander}
+				evaluator.Eval(expanded, env)
+			}
+			return
+		}
+	}
 }
 
 func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {

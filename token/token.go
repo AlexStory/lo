@@ -17,6 +17,9 @@ const (
 	Quote        TokenType = "QUOTE"
 	Keyword      TokenType = "KEYWORD"
 	HashParen    TokenType = "#("
+	Backtick     TokenType = "BACKTICK"
+	Tilde        TokenType = "TILDE"
+	TildeAt      TokenType = "TILDE_AT"
 )
 
 type Token struct {

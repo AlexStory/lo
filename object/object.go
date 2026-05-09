@@ -22,6 +22,8 @@ const (
 	KEYWORD_OBJ  ObjectType = "KEYWORD"
 	MAP_OBJ      ObjectType = "MAP"
 	NIL_OBJ      ObjectType = "Nil"
+	SYMBOL_OBJ   ObjectType = "SYMBOL"
+	MACRO_OBJ    ObjectType = "MACRO"
 )
 
 type HashKey struct {
@@ -178,3 +180,21 @@ type Nil struct{}
 
 func (n *Nil) Type() ObjectType { return NIL_OBJ }
 func (n *Nil) Inspect() string  { return "nil" }
+
+// Symbol represents a symbol object
+type Symbol struct {
+	Value string
+}
+
+func (s *Symbol) Type() ObjectType { return SYMBOL_OBJ }
+func (s *Symbol) Inspect() string  { return s.Value }
+
+// Macro represents a macro object
+type Macro struct {
+	Parameters []*ast.Identifier
+	Body       []ast.Expression
+	Env        *Environment
+}
+
+func (m *Macro) Type() ObjectType { return MACRO_OBJ }
+func (m *Macro) Inspect() string  { return "macro" }

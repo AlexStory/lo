@@ -67,6 +67,14 @@ func (p *Parser) parseExpression() ast.Expression {
 		return p.parseMapLiteral()
 	case token.HashParen:
 		return p.parseLambdaLiteral()
+	case token.Quote:
+		return p.parseQuoteExpression()
+	case token.Backtick:
+		return p.parseBacktickExpression()
+	case token.Tilde:
+		return p.parseTildeExpression()
+	case token.TildeAt:
+		return p.parseTildeAtExpression()
 	case token.Keyword:
 		return &ast.Keyword{Token: p.curToken, Value: p.curToken.Literal}
 	default:
@@ -170,6 +178,34 @@ func (p *Parser) parseLambdaLiteral() *ast.LambdaLiteral {
 	p.nextToken()
 
 	return ll
+}
+
+func (p *Parser) parseQuoteExpression() *ast.QuoteExpression {
+	qe := &ast.QuoteExpression{Token: p.curToken}
+	p.nextToken()
+	qe.Expr = p.parseExpression()
+	return qe
+}
+
+func (p *Parser) parseBacktickExpression() *ast.BacktickExpression {
+	be := &ast.BacktickExpression{Token: p.curToken}
+	p.nextToken()
+	be.Expr = p.parseExpression()
+	return be
+}
+
+func (p *Parser) parseTildeExpression() *ast.TildeExpression {
+	te := &ast.TildeExpression{Token: p.curToken}
+	p.nextToken()
+	te.Expr = p.parseExpression()
+	return te
+}
+
+func (p *Parser) parseTildeAtExpression() *ast.TildeAtExpression {
+	tae := &ast.TildeAtExpression{Token: p.curToken}
+	p.nextToken()
+	tae.Expr = p.parseExpression()
+	return tae
 }
 
 func (p *Parser) curTokenIs(t token.TokenType) bool {

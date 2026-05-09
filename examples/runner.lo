@@ -1,0 +1,3 @@
+(import "add.lo")
+
+(println (add/add 2 4))

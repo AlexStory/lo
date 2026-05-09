@@ -9,6 +9,12 @@ import (
 	"lo/object"
 )
 
+var globalEvaluator *Evaluator
+
+func SetEvaluator(e *Evaluator) {
+	globalEvaluator = e
+}
+
 func GetBuiltin(name string) (object.BuiltinFunction, bool) {
 	switch name {
 	case "+":
@@ -65,8 +71,77 @@ func GetBuiltin(name string) (object.BuiltinFunction, bool) {
 		return greaterThanEquals, true
 	case "not":
 		return not, true
+	case "concat":
+		return concat, true
+	case "empty?":
+		return isEmpty, true
+	case "nil?":
+		return isNil, true
+	case "list?":
+		return isList, true
+	case "list":
+		return list, true
 	}
 	return nil, false
+}
+
+func concat(args ...object.Object) object.Object {
+	elements := []object.Object{}
+	for _, arg := range args {
+		list, ok := arg.(*object.List)
+		if !ok {
+			return &object.Error{Message: fmt.Sprintf("concat: expected list, got %s", arg.Type())}
+		}
+		elements = append(elements, list.Elements...)
+	}
+	return &object.List{Elements: elements}
+}
+
+func isEmpty(args ...object.Object) object.Object {
+	if len(args) != 1 {
+		return &object.Error{Message: fmt.Sprintf("empty?: expected 1 argument, got %d", len(args))}
+	}
+	switch arg := args[0].(type) {
+	case *object.List:
+		if len(arg.Elements) == 0 {
+			return &consts.TrueBool
+		}
+	case *object.Map:
+		if len(arg.Pairs) == 0 {
+			return &consts.TrueBool
+		}
+	case *object.String:
+		if len(arg.Value) == 0 {
+			return &consts.TrueBool
+		}
+	case *object.Nil:
+		return &consts.TrueBool
+	}
+	return &consts.FalseBool
+}
+
+func isNil(args ...object.Object) object.Object {
+	if len(args) != 1 {
+		return &object.Error{Message: fmt.Sprintf("nil?: expected 1 argument, got %d", len(args))}
+	}
+	if args[0].Type() == object.NIL_OBJ {
+		return &consts.TrueBool
+	}
+	return &consts.FalseBool
+}
+
+func isList(args ...object.Object) object.Object {
+	if len(args) != 1 {
+		return &object.Error{Message: fmt.Sprintf("list?: expected 1 argument, got %d", len(args))}
+	}
+	if args[0].Type() == object.LIST_OBJ {
+		return &consts.TrueBool
+	}
+	return &consts.FalseBool
+}
+
+func list(args ...object.Object) object.Object {
+	return &object.List{Elements: args}
 }
 
 func add(args ...object.Object) object.Object {
@@ -316,7 +391,7 @@ func mapBuiltin(args ...object.Object) object.Object {
 
 	newElements := make([]object.Object, len(list.Elements))
 	for i, el := range list.Elements {
-		res := applyFunction(fn, []object.Object{el}, nil)
+		res := applyFunction(fn, []object.Object{el}, nil, globalEvaluator)
 		if isError(res) {
 			return res
 		}
@@ -339,7 +414,7 @@ func filterBuiltin(args ...object.Object) object.Object {
 
 	newElements := []object.Object{}
 	for _, el := range list.Elements {
-		res := applyFunction(fn, []object.Object{el}, nil)
+		res := applyFunction(fn, []object.Object{el}, nil, globalEvaluator)
 		if isError(res) {
 			return res
 		}
@@ -380,7 +455,7 @@ func reduceBuiltin(args ...object.Object) object.Object {
 
 	result := initial
 	for _, el := range list.Elements {
-		result = applyFunction(fn, []object.Object{result, el}, nil)
+		result = applyFunction(fn, []object.Object{result, el}, nil, globalEvaluator)
 		if isError(result) {
 			return result
 		}

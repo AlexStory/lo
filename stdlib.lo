@@ -1,0 +1,17 @@
+(defmacro -> [x & forms]
+  (if (empty? forms)
+    x
+    (let [form (first forms)
+          rest-forms (rest forms)]
+      (if (list? form)
+        `(-> (~(first form) ~x ~@(rest form)) ~@rest-forms)
+        `(-> (~form ~x) ~@rest-forms)))))
+
+(defmacro ->> [x & forms]
+  (if (empty? forms)
+    x
+    (let [form (first forms)
+          rest-forms (rest forms)]
+      (if (list? form)
+        `(->> (~@(concat form (list x))) ~@rest-forms)
+        `(->> (~form ~x) ~@rest-forms)))))

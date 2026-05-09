@@ -35,6 +35,21 @@ func (l *Lexer) NextToken() token.Token {
 	}
 
 	switch l.ch {
+	case '\'':
+		tok = newToken(token.Quote, l, string(l.ch))
+	case '`':
+		tok = newToken(token.Backtick, l, string(l.ch))
+	case '~':
+		if l.peekChar() == '@' {
+			tok.Column = l.column
+			tok.Line = l.line
+			tok.Type = token.TildeAt
+			tok.Literal = "~@"
+			l.readChar()
+			l.readChar()
+			return tok
+		}
+		tok = newToken(token.Tilde, l, string(l.ch))
 	case '(':
 		tok = newToken(token.OpenParen, l, string(l.ch))
 	case ')':

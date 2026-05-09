@@ -10,7 +10,7 @@ type Node interface {
 // Expression is the interface for all expression nodes
 type Expression interface {
 	Node
-	expressionNode()
+	ExpressionNode()
 }
 
 // Program represents the entire program
@@ -31,7 +31,7 @@ type ListExpression struct {
 	Expressions []Expression
 }
 
-func (le *ListExpression) expressionNode()      {}
+func (le *ListExpression) ExpressionNode()      {}
 func (le *ListExpression) TokenLiteral() string { return le.Token.Literal }
 
 // Identifier represents an identifier node
@@ -40,7 +40,7 @@ type Identifier struct {
 	Value string
 }
 
-func (i *Identifier) expressionNode()      {}
+func (i *Identifier) ExpressionNode()      {}
 func (i *Identifier) TokenLiteral() string { return i.Token.Literal }
 
 // IntLiteral represents an integer literal node
@@ -49,7 +49,7 @@ type IntLiteral struct {
 	Value int64
 }
 
-func (il *IntLiteral) expressionNode()      {}
+func (il *IntLiteral) ExpressionNode()      {}
 func (il *IntLiteral) TokenLiteral() string { return il.Token.Literal }
 
 // FloatLiteral represents a float literal node
@@ -58,7 +58,7 @@ type FloatLiteral struct {
 	Value float64
 }
 
-func (fl *FloatLiteral) expressionNode()      {}
+func (fl *FloatLiteral) ExpressionNode()      {}
 func (fl *FloatLiteral) TokenLiteral() string { return fl.Token.Literal }
 
 // ListLiteral represents a list literal node
@@ -67,7 +67,7 @@ type ListLiteral struct {
 	Expressions []Expression
 }
 
-func (ll *ListLiteral) expressionNode()      {}
+func (ll *ListLiteral) ExpressionNode()      {}
 func (ll *ListLiteral) TokenLiteral() string { return ll.Token.Literal }
 
 // StringLiteral represents a string literal node
@@ -76,7 +76,7 @@ type StringLiteral struct {
 	Value string
 }
 
-func (sl *StringLiteral) expressionNode()      {}
+func (sl *StringLiteral) ExpressionNode()      {}
 func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
 
 // Keyword represents a keyword literal node
@@ -85,7 +85,7 @@ type Keyword struct {
 	Value string
 }
 
-func (k *Keyword) expressionNode()      {}
+func (k *Keyword) ExpressionNode()      {}
 func (k *Keyword) TokenLiteral() string { return k.Token.Literal }
 
 // MapLiteral represents a map literal node
@@ -99,7 +99,7 @@ type MapPair struct {
 	Value Expression
 }
 
-func (ml *MapLiteral) expressionNode()      {}
+func (ml *MapLiteral) ExpressionNode()      {}
 func (ml *MapLiteral) TokenLiteral() string { return ml.Token.Literal }
 
 // LambdaLiteral represents a #(...) lambda literal
@@ -108,5 +108,41 @@ type LambdaLiteral struct {
 	Expressions []Expression
 }
 
-func (ll *LambdaLiteral) expressionNode()      {}
+func (ll *LambdaLiteral) ExpressionNode()      {}
 func (ll *LambdaLiteral) TokenLiteral() string { return ll.Token.Literal }
+
+// QuoteExpression represents a 'expression
+type QuoteExpression struct {
+	Token token.Token // The ' token
+	Expr  Expression
+}
+
+func (qe *QuoteExpression) ExpressionNode()      {}
+func (qe *QuoteExpression) TokenLiteral() string { return qe.Token.Literal }
+
+// BacktickExpression represents a `expression
+type BacktickExpression struct {
+	Token token.Token // The ` token
+	Expr  Expression
+}
+
+func (be *BacktickExpression) ExpressionNode()      {}
+func (be *BacktickExpression) TokenLiteral() string { return be.Token.Literal }
+
+// TildeExpression represents a ~expression
+type TildeExpression struct {
+	Token token.Token // The ~ token
+	Expr  Expression
+}
+
+func (te *TildeExpression) ExpressionNode()      {}
+func (te *TildeExpression) TokenLiteral() string { return te.Token.Literal }
+
+// TildeAtExpression represents a ~@expression
+type TildeAtExpression struct {
+	Token token.Token // The ~@ token
+	Expr  Expression
+}
+
+func (tae *TildeAtExpression) ExpressionNode()      {}
+func (tae *TildeAtExpression) TokenLiteral() string { return tae.Token.Literal }

@@ -9,14 +9,24 @@
 - **Basic Types**: Integers, Floats, Strings, Booleans, Lists, and Nil.
 - **Functions**: Define your own functions with `defn`.
 - **Variables**: Assign values with `def`.
-- **Modern Types**: Keywords (e.g., `:key`) and Maps (e.g., `{:key value}`).
+- **Macros & Standard Library**:
+    - `defmacro` for defining macros.
+    - Quasiquoting with `` ` ``, `~` (unquote), and `~@` (unquote-splicing).
+    - `stdlib.lo` is automatically loaded if present.
+- **Improved Functions**:
+    - Variadic arguments with `&`, e.g., `(defn f [x & rest] ...)`.
+- **Control Flow & Bindings**:
+    - `let` for local bindings.
+    - `if` and `when` for conditional execution.
+    - `->` and `->>` threading macros for cleaner nested calls.
 - **Built-in Functions**:
     - Math operations (`+`, `-`, `*`, `/`).
     - Printing (`print`, `println`).
     - String conversion (`str`).
-    - List manipulation (`head`).
+    - List manipulation (`head`, `concat`).
     - Map manipulation (`get`, `assoc`, `dissoc`).
     - Sequence operations (`first`, `rest`, `cons`, `count`, `map`, `filter`, `reduce`).
+    - Predicates (`empty?`, `nil?`).
     - Comparison & Logic (`=`, `<`, `>`, `<=`, `>=`, `not`, `and`, `or`).
     - Scripting: File I/O (`slurp`, `spit`) and OS interaction (`env`).
 
@@ -77,6 +87,46 @@ A concise syntax for anonymous functions, similar to Clojure.
 (def n 10)
 ```
 
+### Local Bindings
+
+`let` allows defining local variables.
+
+```lisp
+(let [x 1 y 2]
+    (+ x y))
+```
+
+### Threading Macros
+
+Improve readability of nested function calls.
+
+```lisp
+;; Thread-first (->): inserts result as first argument
+(-> 5 (+ 1) (* 2)) ; (* (+ 5 1) 2) => 12
+
+;; Thread-last (->>): inserts result as last argument
+(->> [1 2 3] (map #(+ % 1)) (filter #(> % 2))) ; [3 4]
+```
+
+### Projects
+
+You can create a new project structure with `lo new`:
+
+```bash
+./lo new my-app
+```
+
+This creates a directory `my-app` with:
+- `src/main.lo`: Entry point with a `main` function.
+- `stdlib.lo`: A copy of the standard library.
+
+To run the project, navigate into the directory and use `lo run`:
+
+```bash
+cd my-app
+../lo run arg1 arg2
+```
+
 ### Main Function
 
 If a `main` function is defined in a file, it will be executed when the file is run, receiving command-line arguments.
@@ -86,6 +136,30 @@ If a `main` function is defined in a file, it will be executed when the file is 
     (def n (+ x y))
     (println n))
 ```
+
+### Modules
+
+`lo` has a simple module system. Filenames define namespaces.
+
+- `(import "file.lo")`: Imports a file relative to the current file.
+- `(import module)`: In a project, imports `src/module.lo` or `src/module/main.lo`.
+
+Example:
+
+`src/math.lo`:
+```lisp
+(defn add [x y] (+ x y))
+```
+
+`src/main.lo`:
+```lisp
+(import math)
+
+(defn main []
+  (println (math/add 1 2)))
+```
+
+Symbols from imported modules are prefixed with the module name and a slash, e.g., `math/add`.
 
 ### Arithmetic
 

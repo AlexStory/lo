@@ -3,22 +3,41 @@ package eval
 import (
 	"fmt"
 	"lo/ast"
+	"lo/astconv"
 	"lo/consts"
+	"lo/lexer"
 	"lo/object"
+	"lo/parser"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 )
 
-func Eval(node ast.Node, env *object.Environment) object.Object {
+type Evaluator struct {
+	Expander interface {
+		ExpandMacros(ast.Node, *object.Environment) (ast.Node, error)
+	}
+}
+
+func (e *Evaluator) Eval(node ast.Node, env *object.Environment) object.Object {
+	return Eval(node, env, e)
+}
+
+func Eval(node ast.Node, env *object.Environment, evaluator *Evaluator) object.Object {
 	if node == nil {
 		return &consts.Nil
 	}
+	if ow, ok := node.(*astconv.ObjectWrapper); ok {
+		return ow.Obj
+	}
 	switch node := node.(type) {
 	case *ast.Program:
-		result := evalProgram(node.Expressions, env)
+		result := evalProgram(node.Expressions, env, evaluator)
 		return result
 
 	case *ast.ListExpression:
-		return evalList(node, env)
+		return evalList(node, env, evaluator)
 
 	case *ast.IntLiteral:
 		return &object.Integer{Value: node.Value}
@@ -32,29 +51,33 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
 	case *ast.ListLiteral:
-		return evalListLiteral(node, env)
+		return evalListLiteral(node, env, evaluator)
 	case *ast.MapLiteral:
-		return evalMapLiteral(node, env)
+		return evalMapLiteral(node, env, evaluator)
 	case *ast.LambdaLiteral:
-		return evalLambdaLiteral(node, env)
+		return evalLambdaLiteral(node, env, evaluator)
 	case *ast.Keyword:
 		return &object.Keyword{Value: node.Value}
+	case *ast.QuoteExpression:
+		return evalQuote(node, env, evaluator)
+	case *ast.BacktickExpression:
+		return evalBacktick(node, env, evaluator)
 	}
 
 	return nil
 }
 
-func evalProgram(exps []ast.Expression, env *object.Environment) object.Object {
+func evalProgram(exps []ast.Expression, env *object.Environment, evaluator *Evaluator) object.Object {
 	var result object.Object
 
 	for _, exp := range exps {
-		result = Eval(exp, env)
+		result = Eval(exp, env, evaluator)
 	}
 
 	return result
 }
 
-func evalList(le *ast.ListExpression, env *object.Environment) object.Object {
+func evalList(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
 	if len(le.Expressions) == 0 {
 		return &object.Error{Message: "empty list"}
 	}
@@ -65,22 +88,36 @@ func evalList(le *ast.ListExpression, env *object.Environment) object.Object {
 	if ident, ok := first.(*ast.Identifier); ok {
 		switch ident.Value {
 		case "def":
-			return doDef(le, env)
+			return doDef(le, env, evaluator)
 		case "defn":
-			return evalDefn(le, env)
+			return evalDefn(le, env, evaluator)
+		case "defmacro":
+			return evalDefMacro(le, env, evaluator)
 		case "\\":
-			return evalLambda(le, env)
+			return evalLambda(le, env, evaluator)
 		case "if":
-			return evalIf(le, env)
+			return evalIf(le, env, evaluator)
+		case "when":
+			return evalWhen(le, env, evaluator)
+		case "let":
+			return evalLet(le, env, evaluator)
 		case "and":
-			return evalAnd(le, env)
+			return evalAnd(le, env, evaluator)
 		case "or":
-			return evalOr(le, env)
+			return evalOr(le, env, evaluator)
+		case "quote":
+			return evalQuoteSpecialForm(le, env, evaluator)
+		case "import":
+			return evalImport(le, env, evaluator)
 		default:
 			f = evalIdentifier(ident, env)
 		}
 	} else {
-		f = Eval(first, env)
+		f = Eval(first, env, evaluator)
+	}
+
+	if f == nil {
+		return &object.Error{Message: "function/macro not found"}
 	}
 
 	if f.Type() != object.FUNCTION_OBJ && f.Type() != object.BUILTIN_OBJ && f.Type() != object.KEYWORD_OBJ {
@@ -89,14 +126,18 @@ func evalList(le *ast.ListExpression, env *object.Environment) object.Object {
 
 	args := []object.Object{}
 	for _, arg := range le.Expressions[1:] {
-		args = append(args, Eval(arg, env))
+		evaluated := Eval(arg, env, evaluator)
+		if isError(evaluated) {
+			return evaluated
+		}
+		args = append(args, evaluated)
 	}
 
 	if f.Type() == object.KEYWORD_OBJ {
 		return applyKeywordAsFunction(f.(*object.Keyword), args)
 	}
 
-	return applyFunction(f, args, env)
+	return applyFunction(f, args, env, evaluator)
 }
 
 func applyKeywordAsFunction(k *object.Keyword, args []object.Object) object.Object {
@@ -125,7 +166,7 @@ func applyKeywordAsFunction(k *object.Keyword, args []object.Object) object.Obje
 	return pair.Value
 }
 
-func applyFunction(fn object.Object, args []object.Object, env *object.Environment) object.Object {
+func applyFunction(fn object.Object, args []object.Object, env *object.Environment, evaluator *Evaluator) object.Object {
 	if fn.Type() != object.BUILTIN_OBJ && fn.Type() != object.FUNCTION_OBJ {
 		return &object.Error{Message: fmt.Sprintf("not a function, got %s", fn.Type())}
 	}
@@ -134,12 +175,27 @@ func applyFunction(fn object.Object, args []object.Object, env *object.Environme
 	case *object.Function:
 		extendedEnv := object.NewEnclosedEnvironment(fn.Env)
 		for i, param := range fn.Parameters {
-			extendedEnv.Set(param.Value, args[i])
+			if param.Value == "&" {
+				if i+1 < len(fn.Parameters) {
+					restParam := fn.Parameters[i+1]
+					restArgs := []object.Object{}
+					if i < len(args) {
+						restArgs = args[i:]
+					}
+					extendedEnv.Set(restParam.Value, &object.List{Elements: restArgs})
+					break
+				}
+			}
+			if i < len(args) {
+				extendedEnv.Set(param.Value, args[i])
+			} else {
+				extendedEnv.Set(param.Value, &consts.Nil)
+			}
 		}
 
 		var result object.Object
 		for _, exp := range fn.Body {
-			result = Eval(exp, extendedEnv)
+			result = Eval(exp, extendedEnv, evaluator)
 		}
 		return result
 	case *object.Builtin:
@@ -148,21 +204,21 @@ func applyFunction(fn object.Object, args []object.Object, env *object.Environme
 	return nil
 }
 
-func evalListLiteral(ll *ast.ListLiteral, env *object.Environment) object.Object {
+func evalListLiteral(ll *ast.ListLiteral, env *object.Environment, evaluator *Evaluator) object.Object {
 	elements := []object.Object{}
 
 	for _, exp := range ll.Expressions {
-		evaluated := Eval(exp, env)
+		evaluated := Eval(exp, env, evaluator)
 		elements = append(elements, evaluated)
 	}
 	return &object.List{Elements: elements}
 }
 
-func evalMapLiteral(ml *ast.MapLiteral, env *object.Environment) object.Object {
+func evalMapLiteral(ml *ast.MapLiteral, env *object.Environment, evaluator *Evaluator) object.Object {
 	pairs := make(map[object.HashKey]object.MapPair)
 
 	for _, pair := range ml.Pairs {
-		key := Eval(pair.Key, env)
+		key := Eval(pair.Key, env, evaluator)
 		if isError(key) {
 			return key
 		}
@@ -172,7 +228,7 @@ func evalMapLiteral(ml *ast.MapLiteral, env *object.Environment) object.Object {
 			return &object.Error{Message: fmt.Sprintf("unusable as hash key: %s", key.Type())}
 		}
 
-		value := Eval(pair.Value, env)
+		value := Eval(pair.Value, env, evaluator)
 		if isError(value) {
 			return value
 		}
@@ -219,7 +275,7 @@ func evalIdentifier(ident *ast.Identifier, env *object.Environment) object.Objec
 	return val
 }
 
-func doDef(le *ast.ListExpression, env *object.Environment) object.Object {
+func doDef(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
 	if len(le.Expressions) != 3 {
 		return &object.Error{Message: "wrong number of arguments to def, got " + fmt.Sprint(len(le.Expressions)-1) + ", expected 2"}
 	}
@@ -229,12 +285,12 @@ func doDef(le *ast.ListExpression, env *object.Environment) object.Object {
 		return &object.Error{Message: "first argument to def must be an identifier"}
 	}
 
-	val := Eval(le.Expressions[2], env)
+	val := Eval(le.Expressions[2], env, evaluator)
 	env.Set(ident.Value, val)
 	return val
 }
 
-func evalDefn(le *ast.ListExpression, env *object.Environment) object.Object {
+func evalDefn(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
 	if len(le.Expressions) < 4 {
 		return &object.Error{Message: "wrong number of arguments to defn, got " + fmt.Sprint(len(le.Expressions)-1) + ", expected 3"}
 	}
@@ -264,7 +320,37 @@ func evalDefn(le *ast.ListExpression, env *object.Environment) object.Object {
 	return fn
 }
 
-func evalLambda(le *ast.ListExpression, env *object.Environment) object.Object {
+func evalDefMacro(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
+	if len(le.Expressions) < 4 {
+		return &object.Error{Message: "wrong number of arguments to defmacro, got " + fmt.Sprint(len(le.Expressions)-1) + ", expected 3"}
+	}
+
+	ident, ok := le.Expressions[1].(*ast.Identifier)
+	if !ok {
+		return &object.Error{Message: "first argument to defmacro must be an identifier"}
+	}
+
+	paramsExpr, ok := le.Expressions[2].(*ast.ListLiteral)
+	if !ok {
+		return &object.Error{Message: "second argument to defmacro must be a list of identifiers"}
+	}
+
+	params := []*ast.Identifier{}
+	for _, p := range paramsExpr.Expressions {
+		param, ok := p.(*ast.Identifier)
+		if !ok {
+			return &object.Error{Message: "parameters to defmacro must be identifiers"}
+		}
+		params = append(params, param)
+	}
+
+	body := le.Expressions[3:]
+	macro := &object.Macro{Parameters: params, Body: body, Env: env}
+	env.Set(ident.Value, macro)
+	return macro
+}
+
+func evalLambda(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
 	if len(le.Expressions) < 3 {
 		return &object.Error{Message: "wrong number of arguments to lambda, got " + fmt.Sprint(len(le.Expressions)-1) + ", expected 2"}
 	}
@@ -287,7 +373,7 @@ func evalLambda(le *ast.ListExpression, env *object.Environment) object.Object {
 	return &object.Function{Name: "lambda", Parameters: params, Body: body, Env: env}
 }
 
-func evalLambdaLiteral(ll *ast.LambdaLiteral, env *object.Environment) object.Object {
+func evalLambdaLiteral(ll *ast.LambdaLiteral, env *object.Environment, evaluator *Evaluator) object.Object {
 	maxArg := 0
 
 	// Find all %n and %& in the expressions
@@ -346,23 +432,80 @@ func evalLambdaLiteral(ll *ast.LambdaLiteral, env *object.Environment) object.Ob
 	}
 }
 
-func evalIf(le *ast.ListExpression, env *object.Environment) object.Object {
+func evalIf(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
 
 	if len(le.Expressions) != 4 {
 		return &object.Error{Message: "wrong number of arguments to if, got " + fmt.Sprint(len(le.Expressions)-1) + ", expected 3"}
 	}
 
-	cond := Eval(le.Expressions[1], env)
-	if cond != &consts.FalseBool {
-		return Eval(le.Expressions[2], env)
+	cond := Eval(le.Expressions[1], env, evaluator)
+	if !isFalsey(cond) {
+		return Eval(le.Expressions[2], env, evaluator)
 	}
-	return Eval(le.Expressions[3], env)
+	return Eval(le.Expressions[3], env, evaluator)
 }
 
-func evalAnd(le *ast.ListExpression, env *object.Environment) object.Object {
+func evalWhen(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
+	if len(le.Expressions) < 3 {
+		return &object.Error{Message: "wrong number of arguments to when, expected at least 2"}
+	}
+
+	cond := Eval(le.Expressions[1], env, evaluator)
+	if !isFalsey(cond) {
+		var result object.Object
+		for _, exp := range le.Expressions[2:] {
+			result = Eval(exp, env, evaluator)
+		}
+		return result
+	}
+	return &consts.Nil
+}
+
+func evalLet(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
+	if len(le.Expressions) < 3 {
+		return &object.Error{Message: "wrong number of arguments to let, expected at least 2"}
+	}
+
+	bindings, ok := le.Expressions[1].(*ast.ListLiteral)
+	if !ok {
+		return &object.Error{Message: "first argument to let must be a list of bindings"}
+	}
+
+	if len(bindings.Expressions)%2 != 0 {
+		return &object.Error{Message: "bindings must be a list of even number of elements"}
+	}
+
+	enclosedEnv := object.NewEnclosedEnvironment(env)
+	for i := 0; i < len(bindings.Expressions); i += 2 {
+		ident, ok := bindings.Expressions[i].(*ast.Identifier)
+		if !ok {
+			return &object.Error{Message: "binding keys must be identifiers"}
+		}
+		val := Eval(bindings.Expressions[i+1], enclosedEnv, evaluator)
+		if isError(val) {
+			return val
+		}
+		enclosedEnv.Set(ident.Value, val)
+	}
+
+	var result object.Object
+	for _, exp := range le.Expressions[2:] {
+		result = Eval(exp, enclosedEnv, evaluator)
+	}
+	return result
+}
+
+type objectWrapper struct {
+	obj object.Object
+}
+
+func (ow *objectWrapper) TokenLiteral() string { return "" }
+func (ow *objectWrapper) ExpressionNode()      {}
+
+func evalAnd(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
 	var result object.Object = &consts.TrueBool
 	for _, exp := range le.Expressions[1:] {
-		result = Eval(exp, env)
+		result = Eval(exp, env, evaluator)
 		if isFalsey(result) {
 			return result
 		}
@@ -370,15 +513,139 @@ func evalAnd(le *ast.ListExpression, env *object.Environment) object.Object {
 	return result
 }
 
-func evalOr(le *ast.ListExpression, env *object.Environment) object.Object {
+func evalOr(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
 	var result object.Object = &consts.FalseBool
 	for _, exp := range le.Expressions[1:] {
-		result = Eval(exp, env)
+		result = Eval(exp, env, evaluator)
 		if !isFalsey(result) {
 			return result
 		}
 	}
 	return result
+}
+
+func evalQuote(qe *ast.QuoteExpression, env *object.Environment, evaluator *Evaluator) object.Object {
+	return astconv.AstToObject(qe.Expr)
+}
+
+func evalQuoteSpecialForm(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
+	if len(le.Expressions) != 2 {
+		return &object.Error{Message: fmt.Sprintf("quote: expected 1 argument, got %d", len(le.Expressions)-1)}
+	}
+	return astconv.AstToObject(le.Expressions[1])
+}
+
+func evalBacktick(be *ast.BacktickExpression, env *object.Environment, evaluator *Evaluator) object.Object {
+	return evalQuasiquote(be.Expr, env, evaluator)
+}
+
+func evalQuasiquote(node ast.Expression, env *object.Environment, evaluator *Evaluator) object.Object {
+	switch n := node.(type) {
+	case *ast.TildeExpression:
+		return Eval(n.Expr, env, evaluator)
+	case *ast.ListExpression:
+		newElements := []object.Object{}
+		for _, e := range n.Expressions {
+			if tae, ok := e.(*ast.TildeAtExpression); ok {
+				expanded := Eval(tae.Expr, env, evaluator)
+				if list, ok := expanded.(*object.List); ok {
+					newElements = append(newElements, list.Elements...)
+				} else {
+					return &object.Error{Message: "unquote-splicing: expected list"}
+				}
+			} else {
+				newElements = append(newElements, evalQuasiquote(e, env, evaluator))
+			}
+		}
+		return &object.List{Elements: newElements}
+	default:
+		return astconv.AstToObject(node)
+	}
+}
+
+func evalImport(le *ast.ListExpression, env *object.Environment, evaluator *Evaluator) object.Object {
+	if len(le.Expressions) != 2 {
+		return &object.Error{Message: fmt.Sprintf("import: expected 1 argument, got %d", len(le.Expressions)-1)}
+	}
+
+	var path string
+	var namespace string
+
+	switch arg := le.Expressions[1].(type) {
+	case *ast.StringLiteral:
+		path = arg.Value
+		// Namespace is the filename without extension
+		namespace = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	case *ast.Identifier:
+		// Project-style import: (import math) looks for src/math.lo or src/math/main.lo
+		name := arg.Value
+		namespace = name
+		path = filepath.Join("src", name+".lo")
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			path = filepath.Join("src", name, "main.lo")
+		}
+	default:
+		return &object.Error{Message: "import: argument must be a string or identifier"}
+	}
+
+	// Resolve relative path if it's a string literal and looks like a relative path
+	if _, ok := le.Expressions[1].(*ast.StringLiteral); ok {
+		if !filepath.IsAbs(path) {
+			// Get current file path from token
+			currentFile := le.Token.Filename
+			if currentFile != "" && currentFile != "repl" && currentFile != "main" {
+				dir := filepath.Dir(currentFile)
+				path = filepath.Join(dir, path)
+			}
+		}
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return &object.Error{Message: fmt.Sprintf("import: failed to read file %s: %s", path, err)}
+	}
+
+	l := lexer.New(string(content), path)
+	p := parser.New(l)
+	program := p.Parse()
+	if len(p.Errors) != 0 {
+		return &object.Error{Message: fmt.Sprintf("import: parser errors in %s", path)}
+	}
+
+	// We need to expand macros in the imported file too!
+	// But we don't have access to the expander here easily without creating a circular dependency
+	// or passing it in.
+	// For now, let's try to just evaluate it in a fresh environment.
+	moduleEnv := object.NewEnvironment()
+
+	// We need an expander. main.go has one.
+	// This is a bit tricky because of the package structure.
+	// But eval is a dependency of expand, not the other way around.
+	// Wait, we can't use expand here.
+	// Actually, ExpandMacros is what we should call if we want macros to work in modules.
+
+	// Let's see how main.go handles it.
+	// For now, let's just evaluate it and see.
+	// If the module has macros, they won't be expanded in the module itself unless we expand it.
+
+	// To avoid circular dependency, we might need a way to pass the expander to Eval
+	// or have a global registry.
+	if evaluator.Expander != nil {
+		expanded, err := evaluator.Expander.ExpandMacros(program, moduleEnv)
+		if err == nil {
+			program = expanded.(*ast.Program)
+		}
+	}
+
+	_ = Eval(program, moduleEnv, evaluator)
+
+	// Export symbols to the current environment with namespace prefix
+	for _, key := range moduleEnv.GetKeys() {
+		val, _ := moduleEnv.Get(key)
+		env.Set(namespace+"/"+key, val)
+	}
+
+	return &consts.Nil
 }
 
 func isFalsey(obj object.Object) bool {
